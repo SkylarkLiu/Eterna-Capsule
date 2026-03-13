@@ -4,9 +4,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 import { User } from './entities/user.entity';
+import { Capsule } from './entities/capsule.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
+import { CapsuleModule } from './modules/capsule/capsule.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -22,12 +26,16 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         return {
           type: 'sqlite' as const,
           database: typeof dbName === 'string' ? dbName : 'eterna.db',
-          entities: [User],
+          entities: [User, Capsule],
           synchronize: configService.get('APP_ENV') === 'development',
           logging: configService.get('APP_ENV') === 'development',
         };
       },
       inject: [ConfigService],
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'uploads'),
+      serveRoot: '/uploads',
     }),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.registerAsync({
@@ -42,6 +50,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     }),
     AuthModule,
     UserModule,
+    CapsuleModule,
   ],
   providers: [
     {
