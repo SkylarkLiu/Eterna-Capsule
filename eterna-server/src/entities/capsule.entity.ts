@@ -10,7 +10,7 @@ import {
 } from 'typeorm';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { User } from './user.entity';
-import { CapsuleType, CapsuleStatus, TriggerType } from './capsule.enums';
+import { CapsuleType, CapsuleStatus, TriggerType, ContactMethod } from './capsule.enums';
 
 @Entity('capsules')
 export class Capsule {
@@ -70,6 +70,22 @@ export class Capsule {
   @ApiPropertyOptional({ description: '实际发送时间' })
   @Column({ type: 'datetime', nullable: true })
   sentAt: Date;
+
+  @ApiPropertyOptional({ description: '接收人称呼' })
+  @Column({ length: 100, nullable: true })
+  recipientName: string;
+
+  @ApiPropertyOptional({ description: '联系方式类型', enum: ContactMethod })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
+  contactMethod: ContactMethod;
+
+  @ApiPropertyOptional({ description: '联系方式值' })
+  @Column({ length: 200, nullable: true })
+  contactValue: string;
 
   @ApiProperty({ description: '所属用户ID' })
   @Index()

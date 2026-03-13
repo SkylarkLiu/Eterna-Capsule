@@ -8,14 +8,18 @@ import {
   IsDateString,
   IsInt,
   Min,
+  MaxLength,
   ValidateIf,
+  IsEmail,
+  Matches,
 } from 'class-validator';
-import { CapsuleType, TriggerType } from '@/entities/capsule.enums';
+import { CapsuleType, TriggerType, ContactMethod } from '@/entities/capsule.enums';
 
 export class CreateCapsuleDto {
   @ApiProperty({ description: '标题', example: '给未来的自己' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
   title: string;
 
   @ApiProperty({ description: '内容' })
@@ -47,4 +51,21 @@ export class CreateCapsuleDto {
   @IsInt()
   @Min(1)
   graceDays?: number;
+
+  @ApiPropertyOptional({ description: '接收人称呼' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  recipientName?: string;
+
+  @ApiPropertyOptional({ description: '联系方式类型', enum: ContactMethod })
+  @IsOptional()
+  @IsEnum(ContactMethod)
+  contactMethod?: ContactMethod;
+
+  @ApiPropertyOptional({ description: '联系方式值' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  contactValue?: string;
 }

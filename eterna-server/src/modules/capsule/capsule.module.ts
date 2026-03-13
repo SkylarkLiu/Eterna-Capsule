@@ -7,6 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Capsule } from '@/entities/capsule.entity';
 import { CapsuleController } from './capsule.controller';
 import { CapsuleService } from './capsule.service';
+import { NotificationModule } from '@/modules/notification/notification.module';
 
 @Module({
   imports: [
@@ -14,7 +15,7 @@ import { CapsuleService } from './capsule.service';
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads',
-        filename: (req, file, callback) => {
+        filename: (_req: Express.Request, file: Express.Multer.File, callback: (error: Error | null, filename: string) => void) => {
           const uniqueName = `${uuidv4()}${extname(file.originalname)}`;
           callback(null, uniqueName);
         },
@@ -22,7 +23,7 @@ import { CapsuleService } from './capsule.service';
       limits: {
         fileSize: 50 * 1024 * 1024,
       },
-      fileFilter: (req, file, callback) => {
+      fileFilter: (_req: Express.Request, file: Express.Multer.File, callback: (error: Error | null, acceptFile: boolean) => void) => {
         const allowedMimes = [
           'image/jpeg',
           'image/png',
@@ -39,6 +40,7 @@ import { CapsuleService } from './capsule.service';
         }
       },
     }),
+    NotificationModule,
   ],
   controllers: [CapsuleController],
   providers: [CapsuleService],

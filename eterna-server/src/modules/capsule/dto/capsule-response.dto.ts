@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CapsuleType, CapsuleStatus, TriggerType } from '@/entities/capsule.enums';
+import { CapsuleType, CapsuleStatus, TriggerType, ContactMethod } from '@/entities/capsule.enums';
 
 export class CapsuleResponseDto {
   @ApiProperty({ description: '胶囊ID' })
@@ -34,6 +34,15 @@ export class CapsuleResponseDto {
 
   @ApiPropertyOptional({ description: '实际发送时间' })
   sentAt: Date;
+
+  @ApiPropertyOptional({ description: '接收人称呼' })
+  recipientName: string;
+
+  @ApiPropertyOptional({ description: '联系方式类型', enum: ContactMethod })
+  contactMethod: ContactMethod;
+
+  @ApiPropertyOptional({ description: '联系方式值' })
+  contactValue: string;
 
   @ApiProperty({ description: '所属用户ID' })
   userId: string;
