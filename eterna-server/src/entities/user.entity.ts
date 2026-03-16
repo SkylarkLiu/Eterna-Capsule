@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { HeartbeatStatus } from './heartbeat.enums';
 
 @Entity('users')
 export class User {
@@ -40,6 +41,22 @@ export class User {
   @ApiPropertyOptional({ description: '座右铭', example: '守护你的数字记忆' })
   @Column({ length: 200, nullable: true })
   motto: string;
+
+  @ApiPropertyOptional({ description: '最后心跳时间' })
+  @Column({ type: 'datetime', nullable: true })
+  lastHeartbeatAt: Date;
+
+  @ApiPropertyOptional({ description: '心跳状态', enum: HeartbeatStatus })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: HeartbeatStatus.ALIVE,
+  })
+  heartbeatStatus: HeartbeatStatus;
+
+  @ApiPropertyOptional({ description: '心跳宽限天数（超过此天数未心跳则标记为失联）' })
+  @Column({ type: 'integer', default: 30 })
+  heartbeatGraceDays: number;
 
   @ApiProperty({ description: '创建时间' })
   @CreateDateColumn({ type: 'datetime' })

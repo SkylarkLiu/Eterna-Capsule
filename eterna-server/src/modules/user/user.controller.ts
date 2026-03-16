@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Body, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { User } from '@/entities/user.entity';
@@ -32,5 +32,13 @@ export class UserController {
     @Body() updateUserDto: UpdateUserDto,
   ): Promise<User> {
     return this.userService.update(user.id, updateUserDto);
+  }
+
+  @Post('heartbeat')
+  @ApiOperation({ summary: '记录心跳' })
+  @ApiResponse({ status: 200, description: '心跳记录成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  async recordHeartbeat(@CurrentUser() user: User): Promise<User> {
+    return this.userService.recordHeartbeat(user.id);
   }
 }

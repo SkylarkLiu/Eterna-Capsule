@@ -11,6 +11,7 @@ import { Capsule } from './entities/capsule.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { CapsuleModule } from './modules/capsule/capsule.module';
+import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
 @Module({
@@ -51,6 +52,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AuthModule,
     UserModule,
     CapsuleModule,
+    SchedulerModule,
   ],
   providers: [
     {
