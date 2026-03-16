@@ -3,11 +3,13 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { UserService } from '@/modules/user/user.service';
 import { CapsuleService } from '@/modules/capsule/capsule.service';
 import { NotificationService } from '@/modules/notification/notification.service';
+import { ChatService } from '@/modules/chat/chat.service';
 import { HeartbeatStatus } from '@/entities/heartbeat.enums';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Capsule } from '@/entities/capsule.entity';
 import { CapsuleStatus, TriggerType } from '@/entities/capsule.enums';
+import { User } from '@/entities/user.entity';
 
 @Injectable()
 export class SchedulerService {
@@ -18,8 +20,11 @@ export class SchedulerService {
     private readonly userService: UserService,
     private readonly capsuleService: CapsuleService,
     private readonly notificationService: NotificationService,
+    private readonly chatService: ChatService,
     @InjectRepository(Capsule)
     private capsuleRepository: Repository<Capsule>,
+    @InjectRepository(User)
+    private userRepository: Repository<User>,
   ) {}
 
   @Cron(CronExpression.EVERY_HOUR)
@@ -101,6 +106,51 @@ export class SchedulerService {
     this.logger.log('清理已处理胶囊缓存...');
     this.processedCapsules.clear();
     this.logger.log('缓存已清理');
+  }
+
+  /**
+   * Memory Compression Task - Runs every night at 2 AM
+   * 
+   * This task processes all users' conversations from the day and
+   * extracts key memories to store in long-term memory.
+   * 
+   * FLOW:
+   * 1. Find all users who had conversations today
+   * 2. For each user, call ChatService.compressMemories()
+   * 3. AI extracts 3 most precious memory points
+   * 4. Summaries are stored in UserMemory table
+   * 5. Old ChatMemory entries are cleaned up
+   * 
+   * EFFECT:
+   * When you ask "Do you remember who I mentioned last month?"
+   * The Sentinel can search through compressed memories and recall.
+   */
+  @Cron('0 2 * * *')
+  async handleMemoryCompression() {
+    this.logger.log('开始记忆压缩任务...');
+
+    try {
+      const users = await this.userRepository.find({
+        where: { heartbeatStatus: HeartbeatStatus.ALIVE },
+      });
+
+      let compressedCount = 0;
+      let errorCount = 0;
+
+      for (const user of users) {
+        try {
+          await this.chatService.compressMemories(user.id);
+          compressedCount++;
+        } catch (error) {
+          this.logger.error(`用户 ${user.id} 记忆压缩失败: ${error.message}`);
+          errorCount++;
+        }
+      }
+
+      this.logger.log(`记忆压缩任务完成: 成功 ${compressedCount}, 失败 ${errorCount}`);
+    } catch (error) {
+      this.logger.error(`记忆压缩任务失败: ${error.message}`);
+    }
   }
 
   async triggerCapsuleManually(capsuleId: string): Promise<boolean> {

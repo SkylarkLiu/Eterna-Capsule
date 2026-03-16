@@ -1,51 +1,137 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { sentinelApi } from '@/api'
+import type { ChatMessage, UserMemory } from '@/api/types'
+
+export type PetState = 'IDLE' | 'LISTENING' | 'HAPPY' | 'WEAK'
 
 export const useSentinelStore = defineStore('sentinel', () => {
-  const name = ref('毕方')
-  const title = ref('数字守望者')
-  const symbol = ref('🔥')
-  const energy = ref(85)
-  const symbiosisDays = ref(42)
-  const conversationCount = ref(128)
-  const capsulesCreated = ref(5)
-  const lastActiveDays = ref(7)
-  
-  const currentMessage = computed(() => {
-    if (energy.value > 70) {
-      return '主人，今天也要元气满满哦！有什么想对我说的吗？'
-    } else if (energy.value > 30) {
-      return '主人，我有点累了...记得来和我互动呀~'
-    } else {
-      return '主人，我好想你...请多陪陪我吧...'
-    }
+  const name = ref('Sentinel')
+  const symbol = ref('◈')
+  const energy = ref(100)
+  const petState = ref<PetState>('IDLE')
+  const currentMessage = ref('')
+  const chatHistory = ref<ChatMessage[]>([])
+  const memories = ref<UserMemory[]>([])
+  const isLoading = ref(false)
+  const isFeeding = ref(false)
+
+  const energyLevel = computed(() => {
+    if (energy.value > 70) return 'high'
+    if (energy.value > 30) return 'medium'
+    return 'low'
   })
 
-  const feed = () => {
-    energy.value = Math.min(100, energy.value + 10)
+  const petColor = computed(() => {
+    if (energy.value > 70) return { primary: '#C1FF72', secondary: '#00F2FF' }
+    if (energy.value > 30) return { primary: '#00F2FF', secondary: '#FFD700' }
+    return { primary: '#FF5C00', secondary: '#FF8C00' }
+  })
+
+  async function chat(message: string): Promise<string> {
+    isLoading.value = true
+    petState.value = 'LISTENING'
+
+    try {
+      const response = await sentinelApi.chat(message)
+      currentMessage.value = response.response
+
+      chatHistory.value.unshift({
+        role: 'user',
+        content: message,
+        createdAt: new Date().toISOString(),
+      })
+
+      chatHistory.value.unshift({
+        role: 'assistant',
+        content: response.response,
+        createdAt: new Date().toISOString(),
+      })
+
+      if (chatHistory.value.length > 20) {
+        chatHistory.value = chatHistory.value.slice(0, 20)
+      }
+
+      return response.response
+    } catch (error: any) {
+      currentMessage.value = '星辰之间的连接似乎有些不稳定...'
+      return currentMessage.value
+    } finally {
+      isLoading.value = false
+      petState.value = 'IDLE'
+    }
   }
 
-  const addConversation = () => {
-    conversationCount.value++
-    energy.value = Math.min(100, energy.value + 5)
+  async function feed(): Promise<number> {
+    isFeeding.value = true
+    petState.value = 'HAPPY'
+
+    try {
+      const response = await sentinelApi.feed()
+      energy.value = Math.min(100, energy.value + response.energyIncrease)
+      currentMessage.value = response.message
+
+      setTimeout(() => {
+        isFeeding.value = false
+        petState.value = 'IDLE'
+      }, 2000)
+
+      return response.energyIncrease
+    } catch (error: any) {
+      isFeeding.value = false
+      petState.value = 'IDLE'
+      return 0
+    }
   }
 
-  const updateEnergy = (value: number) => {
+  async function fetchHistory(limit: number = 10) {
+    try {
+      const response = await sentinelApi.getHistory(limit)
+      chatHistory.value = response.history
+    } catch (error) {
+      console.error('Failed to fetch chat history:', error)
+    }
+  }
+
+  async function fetchMemories(limit: number = 10) {
+    try {
+      const response = await sentinelApi.getMemories(limit)
+      memories.value = response.memories
+    } catch (error) {
+      console.error('Failed to fetch memories:', error)
+    }
+  }
+
+  function setPetState(state: PetState) {
+    petState.value = state
+  }
+
+  function setEnergy(value: number) {
     energy.value = Math.max(0, Math.min(100, value))
+  }
+
+  function clearMessage() {
+    currentMessage.value = ''
   }
 
   return {
     name,
-    title,
     symbol,
     energy,
-    symbiosisDays,
-    conversationCount,
-    capsulesCreated,
-    lastActiveDays,
+    petState,
     currentMessage,
+    chatHistory,
+    memories,
+    isLoading,
+    isFeeding,
+    energyLevel,
+    petColor,
+    chat,
     feed,
-    addConversation,
-    updateEnergy
+    fetchHistory,
+    fetchMemories,
+    setPetState,
+    setEnergy,
+    clearMessage,
   }
 })

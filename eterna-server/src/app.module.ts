@@ -8,9 +8,12 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { User } from './entities/user.entity';
 import { Capsule } from './entities/capsule.entity';
+import { UserMemory } from './entities/user-memory.entity';
+import { ChatMemory } from './entities/chat-memory.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { CapsuleModule } from './modules/capsule/capsule.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { SchedulerModule } from './modules/scheduler/scheduler.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 
@@ -27,7 +30,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         return {
           type: 'sqlite' as const,
           database: typeof dbName === 'string' ? dbName : 'eterna.db',
-          entities: [User, Capsule],
+          entities: [User, Capsule, UserMemory, ChatMemory],
           synchronize: configService.get('APP_ENV') === 'development',
           logging: configService.get('APP_ENV') === 'development',
         };
@@ -52,6 +55,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
     AuthModule,
     UserModule,
     CapsuleModule,
+    ChatModule,
     SchedulerModule,
   ],
   providers: [

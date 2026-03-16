@@ -104,3 +104,33 @@ export interface ApiResponse<T = any> {
   data?: T
   errors?: string[]
 }
+
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+export interface ChatResponse {
+  response: string
+}
+
+export interface FeedResponse {
+  message: string
+  energyIncrease: number
+}
+
+export interface UserMemory {
+  summary: string
+  tags: string[]
+  importanceScore: number
+  createdAt: string
+}
+
+export interface ChatHistoryResponse {
+  history: ChatMessage[]
+}
+
+export interface MemoriesResponse {
+  memories: UserMemory[]
+}

@@ -1,5 +1,5 @@
 import request from './request'
-import type { AuthResponse, RegisterParams, LoginParams, UpdateUserParams, User, Capsule, CreateCapsuleParams, UpdateCapsuleParams } from './types'
+import type { AuthResponse, RegisterParams, LoginParams, UpdateUserParams, User, Capsule, CreateCapsuleParams, UpdateCapsuleParams, ChatResponse, FeedResponse, ChatHistoryResponse, MemoriesResponse } from './types'
 
 export const authApi = {
   register: (data: RegisterParams): Promise<AuthResponse> => {
@@ -68,6 +68,24 @@ export const capsuleApi = {
         'Content-Type': 'multipart/form-data',
       },
     })
+  },
+}
+
+export const sentinelApi = {
+  chat: (message: string): Promise<ChatResponse> => {
+    return request.post('/sentinel/chat', { message })
+  },
+
+  feed: (): Promise<FeedResponse> => {
+    return request.post('/sentinel/feed')
+  },
+
+  getHistory: (limit?: number): Promise<ChatHistoryResponse> => {
+    return request.get('/sentinel/history', { params: { limit } })
+  },
+
+  getMemories: (limit?: number): Promise<MemoriesResponse> => {
+    return request.get('/sentinel/memories', { params: { limit } })
   },
 }
 
