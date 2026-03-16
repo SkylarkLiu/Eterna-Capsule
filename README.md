@@ -229,6 +229,12 @@ MIT License
 - 项目地址：<https://github.com/SkylarkLiu/Eterna-Capsule>
 - 作者：SkylarkLiu
 
+## 更多内容
+
+更多内容可关注作者公众号：
+
+![公众号](./gongzhonghao.jpg)
+
 ***
 
 永恒胶囊 · 守护你的数字记忆
