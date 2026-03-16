@@ -9,6 +9,7 @@
 ## 技术栈
 
 ### 前端 (eterna-app)
+
 - **框架**：Vue 3 + Vite + uni-app
 - **状态管理**：Pinia
 - **HTTP 客户端**：Axios
@@ -16,6 +17,7 @@
 - **设计风格**：静谧数字主义 (Silent Digitalism)
 
 ### 后端 (eterna-server)
+
 - **框架**：NestJS
 - **数据库**：SQLite (TypeORM)
 - **认证**：JWT + Passport
@@ -24,23 +26,31 @@
 ## 核心功能
 
 ### 1. 用户系统
+
 - 邮箱/手机号注册登录
 - JWT Token 认证
 - 个人资料管理
 
 ### 2. 守护兽系统
+
 - 互动式守护兽界面
 - 能量状态监控
 - 智能对话交互
 - 语音输入功能
+- **消息排序与分页**：历史消息按时间正序排列，支持分页加载
+- **全局搜索**：支持关键词搜索聊天记录
+- **实时对话**：打字机效果与思考态占位符
+- **头像元数据**：用户头像展示与视觉增强
 
 ### 3. 情感胶囊
+
 - 创建和管理数字记忆胶囊
 - 3D卡片堆叠效果
 - 粒子动画效果
 - 加密状态显示
 
 ### 4. 系统设置
+
 - 个人资料管理
 - 通知设置
 - 隐私设置
@@ -51,15 +61,20 @@
 ### 静谧数字主义 (Silent Digitalism)
 
 **色调 (Palette)**：
+
 - 主色：极夜黑 (#0A0A0A) 与 星云灰 (#1A1A1A)
 - 点缀色（生命力）：荧光绿 (#C1FF72) 或 冰晶蓝 (#00F2FF)
 - 警告色：余烬橘 (#FF5C00)
 
 **材质 (Textures)**：
+
 - 大量使用玻璃拟态 (Glassmorphism) 和磨砂半透明效果
 - 营造数字胶囊的悬浮感
+- **底部悬浮式布局**：对话预览区、预设短语、输入框和功能菜单栏整合在底部容器
+- **渐变背景阴影处理**：底部容器使用线性渐变背景，营造"漂浮"视觉效果
 
 **字体 (Typography)**：
+
 - 标题：无衬线、等宽字体，展现科技感
 - 正文：优雅的衬线体，提供纸质般的温润感
 
@@ -160,25 +175,34 @@ npm run dev:h5
 
 ### 访问地址
 
-- 前端：http://localhost:5173
-- 后端 API：http://localhost:3000/api
-- API 文档：http://localhost:3000/api/docs
+- 前端：<http://localhost:5173>
+- 后端 API：<http://localhost:3000/api>
+- API 文档：<http://localhost:3000/api/docs>
 
 ## API 接口
 
 ### 认证模块
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
+| 方法   | 路径                 | 描述   |
+| ---- | ------------------ | ---- |
 | POST | /api/auth/register | 用户注册 |
-| POST | /api/auth/login | 用户登录 |
+| POST | /api/auth/login    | 用户登录 |
 
 ### 用户模块
 
-| 方法 | 路径 | 描述 |
-|------|------|------|
-| GET | /api/users/me | 获取当前用户信息 |
-| PATCH | /api/users/update | 更新用户信息 |
+| 方法    | 路径                | 描述       |
+| ----- | ----------------- | -------- |
+| GET   | /api/users/me     | 获取当前用户信息 |
+| PATCH | /api/users/update | 更新用户信息（含 heartbeatGraceDays 心跳宽限天数）|
+
+### 守护兽模块
+
+| 方法   | 路径                      | 描述                         |
+| ---- | ----------------------- | -------------------------- |
+| GET  | /api/sentinel/messages  | 获取守护兽消息历史（分页，按时间正序）       |
+| POST | /api/sentinel/chat      | 发送消息并获取AI回复               |
+| GET  | /api/sentinel/search    | 全局搜索聊天记录（支持关键词和日期筛选）      |
+| GET  | /api/sentinel/energy    | 获取守护兽能量状态                  |
 
 ## 构建生产版本
 
@@ -202,9 +226,9 @@ MIT License
 
 ## 联系方式
 
-- 项目地址：https://github.com/SkylarkLiu/Eterna-Capsule
+- 项目地址：<https://github.com/SkylarkLiu/Eterna-Capsule>
 - 作者：SkylarkLiu
 
----
+***
 
 永恒胶囊 · 守护你的数字记忆
