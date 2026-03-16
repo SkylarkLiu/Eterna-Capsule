@@ -61,6 +61,9 @@ export interface Capsule {
   recipientName: string | null
   contactMethod: ContactMethod | null
   contactValue: string | null
+  encrypted: boolean
+  iv: string | null
+  salt: string | null
   userId: string
   createdAt: string
   updatedAt: string
@@ -77,6 +80,9 @@ export interface CreateCapsuleParams {
   recipientName?: string
   contactMethod?: ContactMethod
   contactValue?: string
+  encrypted?: boolean
+  iv?: string
+  salt?: string
 }
 
 export interface UpdateCapsuleParams {

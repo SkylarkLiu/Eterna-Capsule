@@ -52,15 +52,15 @@
 
     <view class="quick-actions">
       <view class="action-btn glass-panel" @click="navigateToSentinel">
-        <text class="action-icon">◈</text>
+        <text class="action-icon">🕹️</text>
         <text class="action-text">互动</text>
       </view>
       <view class="action-btn glass-panel" @click="navigateToCapsule">
-        <text class="action-icon">◇</text>
+        <text class="action-icon">💊</text>
         <text class="action-text">胶囊</text>
       </view>
       <view class="action-btn glass-panel" @click="feedSentinel">
-        <text class="action-icon">◆</text>
+        <text class="action-icon">🍗</text>
         <text class="action-text">喂食</text>
       </view>
     </view>

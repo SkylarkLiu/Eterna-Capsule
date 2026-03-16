@@ -1,7 +1,7 @@
 <template>
   <view class="capsule-page">
     <view class="page-header">
-      <text class="page-title font-mono">情感包裹</text>
+      <text class="page-title font-mono">情感胶囊</text>
       <text class="page-subtitle">EMOTIONAL CAPSULES</text>
     </view>
 
@@ -70,10 +70,10 @@
 
       <view class="empty-state" v-if="capsuleStore.capsules.length === 0">
         <view class="empty-icon-box">
-          <text class="empty-icon">📦</text>
+          <text class="empty-icon">💊</text>
         </view>
         <text class="empty-title">还没有创建胶囊</text>
-        <text class="empty-hint">点击上方按钮创建你的第一个情感包裹</text>
+        <text class="empty-hint">点击上方按钮创建你的第一个情感胶囊</text>
       </view>
     </scroll-view>
   </view>
@@ -140,7 +140,7 @@ const getTypeIcon = (type: CapsuleType) => {
     'IMAGE': '🖼',
     'VIDEO': '🎬'
   }
-  return map[type] || '📦'
+  return map[type] || '💊'
 }
 
 const getTriggerText = (capsule: Capsule) => {

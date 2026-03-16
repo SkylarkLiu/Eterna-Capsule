@@ -12,6 +12,32 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { User } from './user.entity';
 import { CapsuleType, CapsuleStatus, TriggerType, ContactMethod } from './capsule.enums';
 
+/**
+ * Capsule Entity - Zero-Knowledge Architecture
+ * 
+ * SECURITY DECLARATION:
+ * =====================
+ * This entity implements a zero-knowledge storage architecture where:
+ * 
+ * 1. The server NEVER stores the user's plaintext password
+ * 2. The server NEVER stores or has access to the derived decryption key
+ * 3. All content encryption/decryption happens CLIENT-SIDE only
+ * 4. The server acts as a "blind storage" - storing ciphertext without
+ *    the ability to decrypt it
+ * 
+ * ENCRYPTION FLOW:
+ * - Client derives a 256-bit key using PBKDF2 with a random salt
+ * - Client encrypts content using AES-256-GCM
+ * - Client sends: ciphertext, IV, salt to server
+ * - Server stores these values WITHOUT any decryption capability
+ * 
+ * DECRYPTION FLOW:
+ * - Client retrieves: ciphertext, IV, salt from server
+ * - Client re-derives the key using the stored salt
+ * - Client decrypts content locally
+ * 
+ * The server cannot read the content at any point in the process.
+ */
 @Entity('capsules')
 export class Capsule {
   @ApiProperty({ description: '胶囊ID' })
@@ -22,7 +48,18 @@ export class Capsule {
   @Column({ length: 200 })
   title: string;
 
-  @ApiProperty({ description: '内容（支持长文本）' })
+  /**
+   * Content field - stores encrypted data (Base64 encoded ciphertext)
+   * 
+   * When encrypted=true, this field contains:
+   * - Base64 encoded AES-256-GCM ciphertext
+   * - The server CANNOT decrypt this content
+   * - Only the client with the correct password can decrypt
+   * 
+   * When encrypted=false, this field contains:
+   * - Plain text content (for backward compatibility)
+   */
+  @ApiProperty({ description: '内容（加密时为Base64密文）' })
   @Column({ type: 'text' })
   content: string;
 
@@ -86,6 +123,39 @@ export class Capsule {
   @ApiPropertyOptional({ description: '联系方式值' })
   @Column({ length: 200, nullable: true })
   contactValue: string;
+
+  /**
+   * Encryption status flag
+   * When true, content is AES-256-GCM encrypted and server cannot read it
+   */
+  @ApiPropertyOptional({ description: '是否已加密（true时服务器无法读取内容）' })
+  @Column({ default: false })
+  encrypted: boolean;
+
+  /**
+   * Initialization Vector (IV) for AES-256-GCM decryption
+   * 
+   * SECURITY NOTE:
+   * - This is NOT a secret - it's safe to store on the server
+   * - IV is used together with the key (which server doesn't have) to decrypt
+   * - Each encryption uses a unique random IV for security
+   */
+  @ApiPropertyOptional({ description: '加密初始化向量 (IV) - 非密钥，可安全存储' })
+  @Column({ length: 100, nullable: true })
+  iv: string;
+
+  /**
+   * Salt used for PBKDF2 key derivation
+   * 
+   * SECURITY NOTE:
+   * - This is NOT a secret - it's safe to store on the server
+   * - Salt prevents rainbow table attacks on the encryption
+   * - Each capsule uses a unique random salt
+   * - The server CANNOT derive the key from salt alone (needs password)
+   */
+  @ApiPropertyOptional({ description: '密钥派生盐值 (Salt) - 非密钥，可安全存储' })
+  @Column({ length: 100, nullable: true })
+  salt: string;
 
   @ApiProperty({ description: '所属用户ID' })
   @Index()

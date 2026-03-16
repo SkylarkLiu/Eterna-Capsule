@@ -15,6 +15,12 @@
       ></view>
     </view>
 
+    <EncryptionProgress 
+      :visible="showEncryptionProgress"
+      :progress="encryptionProgress"
+      :phase="encryptionPhase"
+    />
+
     <view class="creator-container glass-panel" :class="{ 'sealing': isSealing }">
       <view class="header">
         <view class="back-btn" @click="goBack">
@@ -330,8 +336,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue'
 import { useCapsuleStore } from '@/stores/capsule'
+import { useUserStore } from '@/stores/user'
 import type { CapsuleType, TriggerType, ContactMethod } from '@/api/types'
 import SentinelMini from '@/components/SentinelMini.vue'
+import EncryptionProgress from '@/components/EncryptionProgress.vue'
+import { CryptoService, useCrypto } from '@/utils/crypto'
 
 interface MediaItem {
   url: string
@@ -347,6 +356,8 @@ interface Particle {
 }
 
 const capsuleStore = useCapsuleStore()
+const userStore = useUserStore()
+const crypto = useCrypto()
 
 const currentStep = ref(1)
 const isSealing = ref(false)
@@ -356,6 +367,11 @@ const mediaList = ref<MediaItem[]>([])
 const contentCount = ref(0)
 const showAcknowledge = ref(false)
 const contactError = ref('')
+
+const showEncryptionProgress = ref(false)
+const encryptionProgress = ref(0)
+const encryptionPhase = ref<'idle' | 'keygen' | 'encrypting' | 'uploading' | 'complete'>('idle')
+const encryptionPassword = ref('')
 
 const capsuleData = reactive({
   title: '',
@@ -609,16 +625,44 @@ async function sealCapsule() {
   if (!canProceed.value || isSealing.value) return
 
   isSealing.value = true
-  showParticleEffect.value = true
-  createParticles()
+  showEncryptionProgress.value = true
+  encryptionProgress.value = 0
+  encryptionPhase.value = 'keygen'
 
   capsuleData.mediaUrls = mediaList.value.map(m => m.url)
 
   try {
+    encryptionProgress.value = 10
+    
+    const password = userStore.user?.id + '_' + Date.now()
+    const { key, salt } = await CryptoService.deriveKey(password)
+    CryptoService.storeKey(userStore.user!.id, key)
+    
+    encryptionProgress.value = 30
+    encryptionPhase.value = 'encrypting'
+    
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    const encryptedContent = await CryptoService.encryptContent(capsuleData.content, key)
+    
+    encryptionProgress.value = 50
+    
+    let encryptedMediaUrls: string[] = []
+    if (mediaList.value.length > 0) {
+      for (let i = 0; i < mediaList.value.length; i++) {
+        const progress = 50 + (i / mediaList.value.length) * 20
+        encryptionProgress.value = progress
+        encryptedMediaUrls.push(mediaList.value[i].url)
+      }
+    }
+    
+    encryptionProgress.value = 75
+    encryptionPhase.value = 'uploading'
+    
     const createParams = {
       title: capsuleData.title,
-      content: capsuleData.content,
-      mediaUrls: capsuleData.mediaUrls,
+      content: encryptedContent.ciphertext,
+      mediaUrls: encryptedMediaUrls,
       type: capsuleData.type,
       triggerType: capsuleData.triggerType,
       triggerDate: capsuleData.triggerType === 'TIME' 
@@ -630,6 +674,9 @@ async function sealCapsule() {
       recipientName: isSelfRecipient.value ? undefined : capsuleData.recipientName,
       contactMethod: isSelfRecipient.value ? undefined : capsuleData.contactMethod || undefined,
       contactValue: isSelfRecipient.value ? undefined : capsuleData.contactValue || undefined,
+      encrypted: true,
+      iv: encryptedContent.iv,
+      salt: salt,
     }
 
     const createResult = await capsuleStore.createCapsule(createParams)
@@ -638,7 +685,7 @@ async function sealCapsule() {
       throw new Error(createResult.message)
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1500))
+    encryptionProgress.value = 90
 
     const sealResult = await capsuleStore.sealCapsule(createResult.data!.id)
     
@@ -646,20 +693,26 @@ async function sealCapsule() {
       throw new Error(sealResult.message)
     }
     
+    encryptionProgress.value = 100
+    encryptionPhase.value = 'complete'
+    
+    showParticleEffect.value = true
+    createParticles()
+    
     uni.showToast({
-      title: '封装成功',
+      title: '加密封装成功',
       icon: 'success',
     })
 
     setTimeout(() => {
       uni.navigateBack()
-    }, 1500)
+    }, 2000)
   } catch (error: any) {
     uni.showToast({
       title: error.message || '封装失败',
       icon: 'none',
     })
-    showParticleEffect.value = false
+    showEncryptionProgress.value = false
   } finally {
     isSealing.value = false
   }

@@ -2,11 +2,13 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { capsuleApi } from '@/api'
 import type { Capsule, CreateCapsuleParams, UpdateCapsuleParams } from '@/api/types'
+import { CryptoService, useCrypto } from '@/utils/crypto'
 
 export const useCapsuleStore = defineStore('capsule', () => {
   const capsules = ref<Capsule[]>([])
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const crypto = useCrypto()
 
   const totalCapsules = computed(() => capsules.value.length)
   const activeCapsules = computed(() => 
@@ -14,6 +16,9 @@ export const useCapsuleStore = defineStore('capsule', () => {
   )
   const draftCapsules = computed(() => 
     capsules.value.filter(c => c.status === 'DRAFT').length
+  )
+  const encryptedCapsules = computed(() =>
+    capsules.value.filter(c => c.encrypted).length
   )
 
   const fetchCapsules = async () => {
@@ -107,6 +112,32 @@ export const useCapsuleStore = defineStore('capsule', () => {
     }
   }
 
+  const decryptCapsule = async (capsule: Capsule, password: string): Promise<string> => {
+    if (!capsule.encrypted || !capsule.iv || !capsule.salt) {
+      return capsule.content
+    }
+
+    try {
+      const { key } = await crypto.deriveKey(password, capsule.salt)
+      const decrypted = await crypto.decryptContent(capsule.content, capsule.iv, key)
+      return decrypted
+    } catch (e: any) {
+      throw new Error('解密失败，请检查密码是否正确')
+    }
+  }
+
+  const storeEncryptionKey = (userId: string, key: CryptoKey) => {
+    CryptoService.storeKey(userId, key)
+  }
+
+  const getEncryptionKey = (userId: string): CryptoKey | undefined => {
+    return CryptoService.getKey(userId)
+  }
+
+  const clearEncryptionKey = (userId: string) => {
+    CryptoService.removeKey(userId)
+  }
+
   return {
     capsules,
     loading,
@@ -114,11 +145,16 @@ export const useCapsuleStore = defineStore('capsule', () => {
     totalCapsules,
     activeCapsules,
     draftCapsules,
+    encryptedCapsules,
     fetchCapsules,
     createCapsule,
     sealCapsule,
     updateCapsule,
     deleteCapsule,
     recordHeartbeat,
+    decryptCapsule,
+    storeEncryptionKey,
+    getEncryptionKey,
+    clearEncryptionKey,
   }
 })

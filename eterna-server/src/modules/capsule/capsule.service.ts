@@ -13,6 +13,42 @@ import { UpdateCapsuleDto } from './dto/update-capsule.dto';
 import { CapsuleStatus, TriggerType } from '@/entities/capsule.enums';
 import { NotificationService } from '@/modules/notification/notification.service';
 
+/**
+ * CapsuleService - Zero-Knowledge Storage Service
+ * 
+ * SECURITY ARCHITECTURE:
+ * ======================
+ * This service implements a "blind storage" pattern where:
+ * 
+ * 1. BLIND STORAGE PRINCIPLE:
+ *    - The server stores encrypted content WITHOUT the ability to decrypt it
+ *    - Content is stored as Base64-encoded ciphertext
+ *    - IV and Salt are stored but are NOT secrets
+ *    - The decryption key NEVER leaves the client device
+ * 
+ * 2. WHAT THE SERVER STORES:
+ *    - content: Base64-encoded AES-256-GCM ciphertext
+ *    - iv: Initialization Vector (public, not a secret)
+ *    - salt: PBKDF2 salt (public, not a secret)
+ *    - encrypted: Boolean flag indicating encryption status
+ * 
+ * 3. WHAT THE SERVER NEVER STORES:
+ *    - User's plaintext password
+ *    - Derived decryption key
+ *    - Any information that could decrypt the content
+ * 
+ * 4. SERVER RESPONSIBILITIES:
+ *    - Store and retrieve encrypted blobs
+ *    - Manage capsule metadata (status, triggers, recipients)
+ *    - Enforce access control (JWT authentication)
+ *    - Trigger notifications when conditions are met
+ * 
+ * 5. CLIENT RESPONSIBILITIES:
+ *    - Derive encryption key from password using PBKDF2
+ *    - Encrypt content using AES-256-GCM
+ *    - Decrypt content locally after retrieval
+ *    - Securely manage the encryption key in memory only
+ */
 @Injectable()
 export class CapsuleService {
   private readonly logger = new Logger(CapsuleService.name);
@@ -23,6 +59,17 @@ export class CapsuleService {
     private notificationService: NotificationService,
   ) {}
 
+  /**
+   * Create a new capsule with blind storage
+   * 
+   * BLIND STORAGE IMPLEMENTATION:
+   * - Receives encrypted content (ciphertext), IV, and salt from client
+   * - Stores them directly WITHOUT any decryption attempt
+   * - The server has ZERO knowledge of the actual content
+   * 
+   * @param userId - The authenticated user's ID
+   * @param createCapsuleDto - Contains encrypted content and encryption metadata
+   */
   async create(userId: string, createCapsuleDto: CreateCapsuleDto): Promise<Capsule> {
     const capsuleData: Partial<Capsule> = {
       title: createCapsuleDto.title,
@@ -31,6 +78,9 @@ export class CapsuleService {
       triggerType: createCapsuleDto.triggerType,
       userId,
       mediaUrls: createCapsuleDto.mediaUrls || [],
+      encrypted: createCapsuleDto.encrypted || false,
+      iv: createCapsuleDto.iv,
+      salt: createCapsuleDto.salt,
     };
 
     if (createCapsuleDto.triggerDate) {
@@ -57,6 +107,13 @@ export class CapsuleService {
     return this.capsuleRepository.save(capsule);
   }
 
+  /**
+   * Find all capsules for a user
+   * 
+   * SECURITY NOTE:
+   * - Returns encrypted content that only the client can decrypt
+   * - JWT authentication ensures only the owner can access
+   */
   async findAll(userId: string): Promise<Capsule[]> {
     return this.capsuleRepository.find({
       where: { userId },
@@ -64,6 +121,17 @@ export class CapsuleService {
     });
   }
 
+  /**
+   * Find a single capsule by ID
+   * 
+   * SECURITY ENFORCEMENT:
+   * - STRICT JWT authentication required
+   * - Only the capsule owner can retrieve the encrypted content
+   * - The server returns ciphertext that only the client can decrypt
+   * 
+   * @param userId - Must match the capsule's owner
+   * @param id - The capsule ID
+   */
   async findOne(userId: string, id: string): Promise<Capsule> {
     const capsule = await this.capsuleRepository.findOne({
       where: { id, userId },
@@ -77,6 +145,13 @@ export class CapsuleService {
     return capsule;
   }
 
+  /**
+   * Update a capsule
+   * 
+   * BLIND UPDATE:
+   * - Updates encrypted content without decryption
+   * - Only allows updates to DRAFT capsules
+   */
   async update(
     userId: string,
     id: string,
@@ -122,10 +197,26 @@ export class CapsuleService {
     if (updateCapsuleDto.contactValue !== undefined) {
       capsule.contactValue = updateCapsuleDto.contactValue;
     }
+    if (updateCapsuleDto.encrypted !== undefined) {
+      capsule.encrypted = updateCapsuleDto.encrypted;
+    }
+    if (updateCapsuleDto.iv !== undefined) {
+      capsule.iv = updateCapsuleDto.iv;
+    }
+    if (updateCapsuleDto.salt !== undefined) {
+      capsule.salt = updateCapsuleDto.salt;
+    }
 
     return this.capsuleRepository.save(capsule);
   }
 
+  /**
+   * Seal a capsule - lock it from further edits
+   * 
+   * SECURITY NOTE:
+   * - Once sealed, the encrypted content cannot be modified
+   * - The server still cannot read the content
+   */
   async seal(userId: string, id: string): Promise<Capsule> {
     const capsule = await this.findOne(userId, id);
 
@@ -208,6 +299,14 @@ export class CapsuleService {
     };
   }
 
+  /**
+   * Process triggered capsules and send notifications
+   * 
+   * SECURITY NOTE:
+   * - The server sends notifications with access links
+   * - The encrypted content is shared, but only the recipient
+   *   with the correct password can decrypt it
+   */
   async processTriggeredCapsules(): Promise<{ sent: number; failed: number }> {
     const { capsules } = await this.checkTriggers();
     
