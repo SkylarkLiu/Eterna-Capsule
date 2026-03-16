@@ -53,6 +53,15 @@
         "navigationBarTextStyle": "white",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/chat-detail/chat-detail",
+      "style": {
+        "navigationBarTitleText": "对话",
+        "navigationBarBackgroundColor": "#0A0A0A",
+        "navigationBarTextStyle": "white",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {

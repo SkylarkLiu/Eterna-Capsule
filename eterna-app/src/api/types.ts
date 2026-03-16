@@ -106,13 +106,16 @@ export interface ApiResponse<T = any> {
 }
 
 export interface ChatMessage {
+  id?: string
   role: 'user' | 'assistant'
   content: string
   createdAt: string
 }
 
 export interface ChatResponse {
-  response: string
+  userMessage: string
+  sentinelResponse: string
+  timestamp: number
 }
 
 export interface FeedResponse {
@@ -125,6 +128,37 @@ export interface UserMemory {
   tags: string[]
   importanceScore: number
   createdAt: string
+}
+
+export interface SentinelConfig {
+  customName: string
+  personalityConfig: string
+  energy: number
+  totalConversations: number
+}
+
+export interface UpdateSentinelConfigParams {
+  customName?: string
+  personalityConfig?: string
+}
+
+export interface MessagesResponse {
+  messages: ChatMessage[]
+  total: number
+  page: number
+  limit: number
+  hasMore: boolean
+}
+
+export interface SearchMessagesResponse {
+  messages: Array<{
+    id: string
+    role: string
+    content: string
+    createdAt: string
+    context?: string
+  }>
+  total: number
 }
 
 export interface ChatHistoryResponse {

@@ -1,5 +1,5 @@
 <template>
-  <view class="sentinel-pet" :class="petState">
+  <view class="sentinel-pet" :class="[petState, { 'speaking': isSpeaking }]">
     <view class="pet-container">
       <view class="aura-layer">
         <view class="aura aura-1" :style="auraStyle"></view>
@@ -14,10 +14,10 @@
           <view class="shape-ring ring-2"></view>
           <view class="shape-ring ring-3"></view>
           <view class="core-center">
-            <view class="eye left-eye" :class="{ 'eye-happy': petState === 'HAPPY' }">
+            <view class="eye left-eye" :class="{ 'eye-happy': petState === 'HAPPY', 'eye-speaking': isSpeaking }">
               <view class="pupil"></view>
             </view>
-            <view class="eye right-eye" :class="{ 'eye-happy': petState === 'HAPPY' }">
+            <view class="eye right-eye" :class="{ 'eye-happy': petState === 'HAPPY', 'eye-speaking': isSpeaking }">
               <view class="pupil"></view>
             </view>
           </view>
@@ -47,6 +47,7 @@ const props = defineProps<{
   message?: string
   energy?: number
   isFeeding?: boolean
+  isSpeaking?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -323,6 +324,33 @@ function getEnergyParticleStyle(index: number) {
 
 .eye-happy .pupil {
   display: none;
+}
+
+.eye-speaking {
+  animation: eye-blink 0.3s ease-in-out infinite;
+}
+
+@keyframes eye-blink {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.3); }
+}
+
+.sentinel-pet.speaking .core-body {
+  animation: speak-pulse 0.5s ease-in-out infinite;
+}
+
+@keyframes speak-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.08); }
+}
+
+.sentinel-pet.speaking .aura {
+  animation: aura-speak 0.5s ease-in-out infinite;
+}
+
+@keyframes aura-speak {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.15); opacity: 0.5; }
 }
 
 .particles {

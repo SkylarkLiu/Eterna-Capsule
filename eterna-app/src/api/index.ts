@@ -1,5 +1,22 @@
 import request from './request'
-import type { AuthResponse, RegisterParams, LoginParams, UpdateUserParams, User, Capsule, CreateCapsuleParams, UpdateCapsuleParams, ChatResponse, FeedResponse, ChatHistoryResponse, MemoriesResponse } from './types'
+import type { 
+  AuthResponse, 
+  RegisterParams, 
+  LoginParams, 
+  UpdateUserParams, 
+  User, 
+  Capsule, 
+  CreateCapsuleParams, 
+  UpdateCapsuleParams, 
+  ChatResponse, 
+  FeedResponse, 
+  ChatHistoryResponse, 
+  MemoriesResponse,
+  SentinelConfig,
+  UpdateSentinelConfigParams,
+  MessagesResponse,
+  SearchMessagesResponse,
+} from './types'
 
 export const authApi = {
   register: (data: RegisterParams): Promise<AuthResponse> => {
@@ -84,8 +101,24 @@ export const sentinelApi = {
     return request.get('/sentinel/history', { params: { limit } })
   },
 
+  getMessages: (page?: number, limit?: number): Promise<MessagesResponse> => {
+    return request.get('/sentinel/messages', { params: { page, limit } })
+  },
+
+  searchMessages: (keyword?: string, date?: string): Promise<SearchMessagesResponse> => {
+    return request.get('/sentinel/search', { params: { keyword, date } })
+  },
+
   getMemories: (limit?: number): Promise<MemoriesResponse> => {
     return request.get('/sentinel/memories', { params: { limit } })
+  },
+
+  getConfig: (): Promise<SentinelConfig> => {
+    return request.get('/sentinel/config')
+  },
+
+  updateConfig: (params: UpdateSentinelConfigParams): Promise<{ success: boolean; config: SentinelConfig }> => {
+    return request.patch('/sentinel/config', params)
   },
 }
 

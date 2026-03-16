@@ -10,6 +10,7 @@ import { User } from './entities/user.entity';
 import { Capsule } from './entities/capsule.entity';
 import { UserMemory } from './entities/user-memory.entity';
 import { ChatMemory } from './entities/chat-memory.entity';
+import { UserSentinel } from './entities/user-sentinel.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { CapsuleModule } from './modules/capsule/capsule.module';
@@ -30,7 +31,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
         return {
           type: 'sqlite' as const,
           database: typeof dbName === 'string' ? dbName : 'eterna.db',
-          entities: [User, Capsule, UserMemory, ChatMemory],
+          entities: [User, Capsule, UserMemory, ChatMemory, UserSentinel],
           synchronize: configService.get('APP_ENV') === 'development',
           logging: configService.get('APP_ENV') === 'development',
         };

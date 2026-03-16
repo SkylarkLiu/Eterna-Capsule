@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, IsEmail, Matches, IsUrl } from 'class-validator';
+import { IsOptional, IsString, MaxLength, IsEmail, Matches, IsUrl, IsInt, Min, Max } from 'class-validator';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({ description: '用户名', example: '永恒旅者', maxLength: 50 })
@@ -28,4 +28,11 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(200, { message: '座右铭长度不能超过200位' })
   motto?: string;
+
+  @ApiPropertyOptional({ description: '心跳宽限天数', example: 7, minimum: 1, maximum: 30 })
+  @IsOptional()
+  @IsInt({ message: '心跳宽限天数必须是整数' })
+  @Min(1, { message: '心跳宽限天数最小为1天' })
+  @Max(30, { message: '心跳宽限天数最大为30天' })
+  heartbeatGraceDays?: number;
 }
