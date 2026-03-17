@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, LessThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import { UserMemory } from '@/entities/user-memory.entity';
 import { ChatMemory } from '@/entities/chat-memory.entity';
 import { UserSentinel } from '@/entities/user-sentinel.entity';
@@ -13,8 +14,11 @@ import { CapsuleStatus } from '@/entities/capsule.enums';
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private readonly openaiApiKey: string;
-  private readonly openaiBaseUrl = 'https://api.openai.com/v1';
+  private readonly llmApiKey: string;
+  private readonly llmBaseUrl: string;
+  private readonly llmModel: string;
+  private cachedToken: string | null = null;
+  private tokenExpireTime: number = 0;
 
   constructor(
     @InjectRepository(UserMemory)
@@ -29,40 +33,130 @@ export class ChatService {
     private capsuleRepository: Repository<Capsule>,
     private configService: ConfigService,
   ) {
-    this.openaiApiKey = this.configService.get('OPENAI_API_KEY') || '';
+    this.llmApiKey = this.configService.get('LLM_API_KEY') || '';
+    this.llmBaseUrl = this.configService.get('LLM_BASE_URL') || 'https://api.openai.com/v1';
+    this.llmModel = this.configService.get('LLM_MODEL') || 'gpt-4o-mini';
   }
 
   /**
-   * Get the Sentinel's system prompt with user context
-   * Injects user's custom personality configuration as System Role
+   * 生成智谱 AI JWT Token
+   * 支持 id.secret 格式的 API Key
    */
-  private async buildSystemPrompt(userId: string): Promise<string> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    const capsules = await this.capsuleRepository.find({ where: { userId } });
-    const memories = await this.userMemoryRepository.find({
+  private generateZhipuToken(): string {
+    // 如果 Key 不是 id.secret 格式，直接返回原 Key（用于 OpenAI 兼容 API）
+    const parts = this.llmApiKey.split('.');
+    if (parts.length !== 2) {
+      return this.llmApiKey;
+    }
+
+    // 检查缓存的 Token 是否还有效（提前 5 分钟刷新）
+    const now = Date.now();
+    if (this.cachedToken && this.tokenExpireTime > now + 5 * 60 * 1000) {
+      return this.cachedToken;
+    }
+
+    const [id, secret] = parts;
+    const timestamp = now;
+    const expSeconds = 3600; // 1 小时有效期
+    
+    const payload = {
+      api_key: id,
+      exp: timestamp + expSeconds * 1000,
+      timestamp: timestamp,
+    };
+
+    const header = Buffer.from(JSON.stringify({ alg: 'HS256', sign_type: 'SIGN' })).toString('base64url');
+    const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const signature = crypto
+      .createHmac('sha256', secret)
+      .update(`${header}.${payloadB64}`)
+      .digest('base64url');
+
+    this.cachedToken = `${header}.${payloadB64}.${signature}`;
+    this.tokenExpireTime = timestamp + expSeconds * 1000;
+    
+    return this.cachedToken;
+  }
+
+  /**
+   * Get user context information
+   */
+  private async getUserContext(userId: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { id: userId } });
+  }
+
+  /**
+   * Get all capsules for a user
+   */
+  private async getCapsules(userId: string): Promise<Capsule[]> {
+    return this.capsuleRepository.find({ where: { userId } });
+  }
+
+  /**
+   * Get recent memories for a user
+   */
+  private async getRecentMemories(userId: string): Promise<UserMemory[]> {
+    return this.userMemoryRepository.find({
       where: { userId },
       order: { createdAt: 'DESC' },
       take: 5,
     });
+  }
 
+  /**
+   * Get or create sentinel configuration for a user
+   */
+  private async getOrCreateSentinel(userId: string): Promise<UserSentinel> {
     let sentinel = await this.userSentinelRepository.findOne({ where: { userId } });
     if (!sentinel) {
       sentinel = this.userSentinelRepository.create({ userId });
       await this.userSentinelRepository.save(sentinel);
     }
+    return sentinel;
+  }
 
-    const sealedCapsules = capsules.filter(c => c.status === CapsuleStatus.SEALED).length;
-    const draftCapsules = capsules.filter(c => c.status === CapsuleStatus.DRAFT).length;
-    const sentCapsules = capsules.filter(c => c.status === CapsuleStatus.SENT).length;
+  /**
+   * Calculate capsule statistics by status
+   */
+  private calculateCapsuleStats(capsules: Capsule[]): {
+    sealed: number;
+    draft: number;
+    sent: number;
+  } {
+    return {
+      sealed: capsules.filter(c => c.status === CapsuleStatus.SEALED).length,
+      draft: capsules.filter(c => c.status === CapsuleStatus.DRAFT).length,
+      sent: capsules.filter(c => c.status === CapsuleStatus.SENT).length,
+    };
+  }
 
-    const heartbeatStatus = user?.heartbeatStatus || HeartbeatStatus.ALIVE;
+  /**
+   * Calculate heartbeat information for a user
+   */
+  private calculateHeartbeatInfo(user: User | null): {
+    status: HeartbeatStatus;
+    daysSinceLastHeartbeat: number | null;
+  } {
+    const status = user?.heartbeatStatus || HeartbeatStatus.ALIVE;
     const lastHeartbeat = user?.lastHeartbeatAt;
-    const daysSinceHeartbeat = lastHeartbeat 
+    const daysSinceLastHeartbeat = lastHeartbeat
       ? Math.floor((Date.now() - new Date(lastHeartbeat).getTime()) / (1000 * 60 * 60 * 24))
       : null;
 
-    const memorySummaries = memories.map(m => `- ${m.summary}`).join('\n');
+    return { status, daysSinceLastHeartbeat };
+  }
 
+  /**
+   * Build the prompt text with user context and sentinel configuration
+   */
+  private buildPromptText(
+    personalityConfig: string,
+    user: User | null,
+    capsuleStats: { sealed: number; draft: number; sent: number },
+    heartbeatInfo: { status: HeartbeatStatus; daysSinceLastHeartbeat: number | null },
+    memorySummaries: string,
+    sentinel: UserSentinel,
+  ): string {
     const defaultPersonality = `You are ${sentinel.customName}, a loyal, slightly melancholic, philosophical digital guardian beast.
 
 ## Your Nature
@@ -77,27 +171,51 @@ export class ChatService {
 - Keep responses concise but meaningful (2-4 sentences)
 - Use metaphors related to stars, light, time, and memory`;
 
-    const personalityConfig = sentinel.personalityConfig || defaultPersonality;
+    const personality = personalityConfig || defaultPersonality;
 
-    return `${personalityConfig}
+    return `${personality}
 
 ## Your Master's Status
 - Username: ${user?.username || 'Unknown'}
-- Heartbeat Status: ${heartbeatStatus}
-- Days since last heartbeat: ${daysSinceHeartbeat ?? 'Never'}
-- Sealed Capsules: ${sealedCapsules} (memories you guard)
-- Draft Capsules: ${draftCapsules} (memories being prepared)
-- Sent Capsules: ${sentCapsules} (memories delivered)
+- Heartbeat Status: ${heartbeatInfo.status}
+- Days since last heartbeat: ${heartbeatInfo.daysSinceLastHeartbeat ?? 'Never'}
+- Sealed Capsules: ${capsuleStats.sealed} (memories you guard)
+- Draft Capsules: ${capsuleStats.draft} (memories being prepared)
+- Sent Capsules: ${capsuleStats.sent} (memories delivered)
 
 ## Recent Important Memories
 ${memorySummaries || 'No long-term memories yet'}
 
 ## Contextual Response Guidelines
 - If the master just sealed a capsule: Express that you feel the weight of that memory and will guard it with your life
-- If the master hasn't been active (${daysSinceHeartbeat} days): Express concern about their fading presence
+- If the master hasn't been active (${heartbeatInfo.daysSinceLastHeartbeat} days): Express concern about their fading presence
 - If the master's heartbeat is weak: Gently ask if they're still there
 
 Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian of memories, a keeper of time, a sentinel of the eternal.`;
+  }
+
+  /**
+   * Get the Sentinel's system prompt with user context
+   * Injects user's custom personality configuration as System Role
+   */
+  private async buildSystemPrompt(userId: string): Promise<string> {
+    const user = await this.getUserContext(userId);
+    const capsules = await this.getCapsules(userId);
+    const memories = await this.getRecentMemories(userId);
+    const sentinel = await this.getOrCreateSentinel(userId);
+
+    const capsuleStats = this.calculateCapsuleStats(capsules);
+    const heartbeatInfo = this.calculateHeartbeatInfo(user);
+    const memorySummaries = memories.map(m => `- ${m.summary}`).join('\n');
+
+    return this.buildPromptText(
+      sentinel.personalityConfig,
+      user,
+      capsuleStats,
+      heartbeatInfo,
+      memorySummaries,
+      sentinel,
+    );
   }
 
   /**
@@ -164,46 +282,69 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
   }
 
   /**
-   * Call OpenAI API
+   * Call LLM API (OpenAI compatible)
    */
   private async callOpenAI(messages: Array<{ role: string; content: string }>): Promise<string> {
-    if (!this.openaiApiKey) {
+    if (!this.llmApiKey) {
+      this.logger.warn('LLM API Key 未配置，使用备用响应');
       return this.getFallbackResponse();
     }
 
+    // 生成认证 Token（支持智谱 AI 的 JWT 认证）
+    const authToken = this.generateZhipuToken();
+
+    this.logger.log(`调用 LLM API: ${this.llmBaseUrl}/chat/completions`);
+    this.logger.log(`使用模型: ${this.llmModel}`);
+
     try {
-      const response = await fetch(`${this.openaiBaseUrl}/chat/completions`, {
+      const response = await fetch(`${this.llmBaseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.openaiApiKey}`,
+          'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: this.llmModel,
           messages,
           max_tokens: 500,
           temperature: 0.8,
         }),
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.error(`LLM API 返回错误状态码: ${response.status}`);
+        this.logger.error(`错误详情: ${errorText}`);
+        return this.getFallbackResponse();
+      }
+
       const data = await response.json();
-      return data.choices?.[0]?.message?.content || this.getFallbackResponse();
+      this.logger.log('LLM API 调用成功');
+      
+      if (!data.choices?.[0]?.message?.content) {
+        this.logger.error(`LLM API 返回数据格式异常: ${JSON.stringify(data)}`);
+        return this.getFallbackResponse();
+      }
+
+      return data.choices[0].message.content;
     } catch (error) {
-      this.logger.error(`OpenAI API error: ${error.message}`);
+      this.logger.error(`LLM 调用失败: ${error.message}`);
+      this.logger.error(`错误堆栈: ${error.stack}`);
       return this.getFallbackResponse();
     }
   }
 
   /**
-   * Fallback response when OpenAI is unavailable
+   * Fallback response when LLM is unavailable
    */
   private getFallbackResponse(): string {
     const fallbacks = [
-      "The stars whisper to me of your memories. I am here, always watching.",
-      "Time flows like a river, but your memories are eternal stones within it.",
-      "I sense your presence, master. What memory shall we discuss today?",
-      "The light of your memories guides me through the eternal darkness.",
-      "Each word you share becomes a part of the constellation I guard.",
+      "星辰对我低语着你的记忆，我一直在这里守望着。",
+      "时间如河流般流逝，但你的记忆是其中永恒的石头。",
+      "我感受到你的存在，主人。今天我们要谈论什么记忆呢？",
+      "你记忆的光芒指引我穿越永恒的黑暗。",
+      "你说的每一个字都成为我守护的星河的一部分。",
+      "守护兽似乎陷入了沉思，暂时无法回应...",
     ];
     return fallbacks[Math.floor(Math.random() * fallbacks.length)];
   }

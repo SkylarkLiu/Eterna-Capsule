@@ -55,10 +55,10 @@
       <view class="messages-container">
         <view 
           v-for="(msg, index) in displayMessages" 
-          :key="msg.tempId || msg.id || index" 
-          :id="`msg-${index}`"
+          :key="msg.id" 
+          :id="`msg-${msg.id}`"
           class="message-item" 
-          :class="[msg.role, { 'highlighted': isHighlighted(msg.content), 'thinking': msg.isThinking }]"
+          :class="[msg.role, { 'highlighted': isHighlighted(msg.content), 'thinking': msg.isThinking, 'typing': msg.isTyping }]"
         >
           <view class="message-date" v-if="shouldShowDate(index)">
             <text class="date-text">{{ formatDate(msg.createdAt) }}</text>
@@ -71,12 +71,14 @@
               </view>
             </view>
             <view class="message-bubble" :class="msg.role">
-              <text class="message-text font-serif" v-if="!msg.isThinking">{{ msg.displayContent || msg.content }}</text>
-              <view class="thinking-dots" v-else>
+              <!-- 思考中状态：显示加载动画 -->
+              <view class="thinking-dots" v-if="msg.isThinking && !msg.isTyping">
                 <view class="dot"></view>
                 <view class="dot"></view>
                 <view class="dot"></view>
               </view>
+              <!-- 打字机状态：显示正在输入的内容 -->
+              <text class="message-text font-serif" v-else>{{ msg.displayContent || msg.content }}</text>
               <text class="message-time" v-if="!msg.isThinking">{{ formatTime(msg.createdAt) }}</text>
             </view>
             <view class="message-avatar user-avatar" v-if="msg.role === 'user'">
@@ -147,15 +149,16 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useSentinelStore } from '@/stores/sentinel'
 import { useUserStore } from '@/stores/user'
+import { sentinelApi } from '@/api'
 
-interface DisplayMessage {
-  id?: string
-  tempId?: string
+interface Message {
+  id: string
   role: 'user' | 'assistant'
   content: string
   displayContent: string
   createdAt: string
   isThinking?: boolean
+  isTyping?: boolean
 }
 
 const sentinelStore = useSentinelStore()
@@ -168,8 +171,8 @@ const searchQuery = ref('')
 const showDatePicker = ref(false)
 const isSending = ref(false)
 const isWaitingResponse = ref(false)
-const localMessages = ref<DisplayMessage[]>([])
-const pendingThinkingId = ref<string | null>(null)
+const messages = ref<Message[]>([])
+const currentTypingId = ref<string | null>(null)
 
 const quickReplies = [
   '你好',
@@ -194,37 +197,20 @@ const statusText = computed(() => {
 })
 
 const displayMessages = computed(() => {
-  let messages: DisplayMessage[] = []
-  
-  messages = sentinelStore.chatHistory.map(m => ({
-    id: m.id,
-    role: m.role,
-    content: m.content,
-    displayContent: m.content,
-    createdAt: m.createdAt,
-  }))
-  
-  localMessages.value.forEach(localMsg => {
-    const exists = messages.find(m => m.tempId === localMsg.tempId)
-    if (!exists) {
-      messages.push(localMsg)
-    }
-  })
-  
-  messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  let filtered = messages.value
   
   if (searchQuery.value.trim()) {
-    messages = messages.filter(m => 
+    filtered = filtered.filter(m => 
       m.content.toLowerCase().includes(searchQuery.value.toLowerCase())
     )
   }
   
-  return messages
+  return filtered
 })
 
 const availableDates = computed(() => {
   const dates = new Set<string>()
-  displayMessages.value.forEach(msg => {
+  messages.value.forEach(msg => {
     const date = new Date(msg.createdAt).toDateString()
     dates.add(date)
   })
@@ -305,14 +291,14 @@ function toggleSearch() {
   }
 }
 
-function generateTempId(): string {
-  return `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+function generateId(): string {
+  return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 }
 
 async function sendMessage() {
   if (!inputText.value.trim() || isWaitingResponse.value) return
   
-  const message = inputText.value
+  const messageContent = inputText.value.trim()
   inputText.value = ''
   
   isSending.value = true
@@ -320,34 +306,34 @@ async function sendMessage() {
     isSending.value = false
   }, 300)
   
-  const userTempId = generateTempId()
   const now = new Date()
   
-  const userMessage: DisplayMessage = {
-    tempId: userTempId,
+  // 1. 添加用户消息（单一消息对象）
+  const userMsgId = generateId()
+  messages.value.push({
+    id: userMsgId,
     role: 'user',
-    content: message,
-    displayContent: message,
+    content: messageContent,
+    displayContent: messageContent,
     createdAt: now.toISOString(),
-  }
-  
-  localMessages.value.push(userMessage)
+  })
   
   await nextTick()
   scrollToBottom()
   
-  const thinkingTempId = generateTempId()
-  const thinkingMessage: DisplayMessage = {
-    tempId: thinkingTempId,
+  // 2. 添加"思考中"的助手消息（单一消息对象，不重复）
+  const assistantMsgId = generateId()
+  messages.value.push({
+    id: assistantMsgId,
     role: 'assistant',
     content: '',
     displayContent: '',
     createdAt: new Date(now.getTime() + 100).toISOString(),
-    isThinking: true,
-  }
+    isThinking: true,  // 思考中状态
+    isTyping: false,   // 打字机状态（初始为 false）
+  })
   
-  localMessages.value.push(thinkingMessage)
-  pendingThinkingId.value = thinkingTempId
+  currentTypingId.value = assistantMsgId
   
   await nextTick()
   scrollToBottom()
@@ -355,49 +341,99 @@ async function sendMessage() {
   isWaitingResponse.value = true
   
   try {
-    const response = await sentinelStore.chat(message)
+    // 3. 调用 API（直接调用 API，不使用 store.chat，避免重复添加消息）
+    const response = await sentinelApi.chat(messageContent)
+    const fullResponse = response.sentinelResponse
     
-    const thinkingIndex = localMessages.value.findIndex(m => m.tempId === thinkingTempId)
-    if (thinkingIndex !== -1) {
-      localMessages.value[thinkingIndex] = {
-        tempId: thinkingTempId,
-        role: 'assistant',
-        content: response,
-        displayContent: '',
-        createdAt: new Date().toISOString(),
-        isThinking: false,
-      }
+    // 4. 找到"思考中"的消息，更新其状态（不新建消息对象）
+    const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
+    if (msgIndex !== -1) {
+      // 关闭思考状态，开启打字机状态
+      messages.value[msgIndex].isThinking = false
+      messages.value[msgIndex].isTyping = true
+      messages.value[msgIndex].content = fullResponse
       
-      await typewriterEffect(thinkingIndex, response)
+      // 5. 打字机效果：逐字更新 displayContent（只更新当前气泡）
+      await typewriterEffect(msgIndex, fullResponse)
     }
+    
+    // 同步更新 store 的对话历史（用于其他页面展示）
+    sentinelStore.chatHistory.push({
+      id: userMsgId,
+      role: 'user',
+      content: messageContent,
+      createdAt: now.toISOString(),
+    })
+    sentinelStore.chatHistory.push({
+      id: assistantMsgId,
+      role: 'assistant',
+      content: fullResponse,
+      createdAt: new Date(now.getTime() + 100).toISOString(),
+    })
+    
   } catch (error) {
-    const thinkingIndex = localMessages.value.findIndex(m => m.tempId === thinkingTempId)
-    if (thinkingIndex !== -1) {
-      localMessages.value.splice(thinkingIndex, 1)
+    // 出错时移除"思考中"消息
+    const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
+    if (msgIndex !== -1) {
+      messages.value.splice(msgIndex, 1)
     }
+    uni.showToast({
+      title: '消息发送失败',
+      icon: 'none',
+    })
   } finally {
     isWaitingResponse.value = false
-    pendingThinkingId.value = null
+    currentTypingId.value = null
   }
 }
 
 async function typewriterEffect(messageIndex: number, text: string) {
   let displayText = ''
+  const msg = messages.value[messageIndex]
+  
+  if (!msg) return
   
   for (let i = 0; i < text.length; i++) {
-    const delay = 30 + Math.random() * 50
+    // 检查消息是否还存在
+    if (!messages.value[messageIndex]) break
+    
+    const delay = 25 + Math.random() * 35
     await new Promise(resolve => setTimeout(resolve, delay))
+    
     displayText += text[i]
-    if (localMessages.value[messageIndex]) {
-      localMessages.value[messageIndex].displayContent = displayText
+    
+    // 直接更新 displayContent，不触发整个列表重渲染
+    if (messages.value[messageIndex]) {
+      messages.value[messageIndex].displayContent = displayText
     }
-    if (i % 5 === 0) {
-      scrollToBottom()
+    
+    // 每 8 个字符滚动一次，减少滚动频率，避免闪烁
+    if (i % 8 === 0) {
+      scrollToBottomSmooth()
     }
+  }
+  
+  // 打字机结束，设置最终状态
+  if (messages.value[messageIndex]) {
+    messages.value[messageIndex].isTyping = false
+    messages.value[messageIndex].displayContent = text
   }
   
   await nextTick()
   scrollToBottom()
+}
+
+function scrollToBottomSmooth() {
+  // 使用 requestAnimationFrame 减少闪烁
+  requestAnimationFrame(() => {
+    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999
+  })
+}
+
+function scrollToBottom() {
+  nextTick(() => {
+    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999
+  })
 }
 
 function sendQuickReply(reply: string) {
@@ -411,8 +447,8 @@ function clearChat() {
     content: '确定要清空所有对话记录吗？',
     success: (res) => {
       if (res.confirm) {
+        messages.value = []
         sentinelStore.chatHistory = []
-        localMessages.value = []
       }
     }
   })
@@ -423,36 +459,35 @@ function jumpToDate(dateStr: string) {
     new Date(m.createdAt).toDateString() === dateStr
   )
   if (index !== -1) {
-    const targetId = `msg-${index}`
-    uni.createSelectorQuery()
-      .select(`#${targetId}`)
-      .boundingClientRect((rect: any) => {
-        if (rect) {
-          scrollToBottom()
-        }
-      })
-      .exec()
+    scrollToBottom()
   }
   showDatePicker.value = false
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999
-  })
+async function loadHistory() {
+  try {
+    const response = await sentinelApi.getMessages(1, 50)
+    messages.value = response.messages.map(m => ({
+      id: m.id || generateId(),
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      displayContent: m.content,
+      createdAt: m.createdAt,
+      isThinking: false,
+      isTyping: false,
+    }))
+  } catch (error) {
+    console.error('Failed to load history:', error)
+  }
 }
 
 onMounted(async () => {
   userStore.init()
-  await sentinelStore.fetchHistory()
+  await loadHistory()
   await nextTick()
   setTimeout(() => {
     scrollToBottom()
   }, 300)
-})
-
-watch(() => sentinelStore.chatHistory.length, () => {
-  localMessages.value = localMessages.value.filter(m => m.isThinking)
 })
 </script>
 
@@ -784,6 +819,10 @@ watch(() => sentinelStore.chatHistory.length, () => {
 
 .message-item.thinking .message-bubble.assistant {
   animation: breathing 1.5s ease-in-out infinite;
+}
+
+.message-item.typing .message-bubble.assistant {
+  border-color: rgba(193, 255, 114, 0.4);
 }
 
 @keyframes breathing {

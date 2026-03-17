@@ -35,12 +35,13 @@
 
 - 互动式守护兽界面
 - 能量状态监控
-- 智能对话交互
+- 智能对话交互（支持 LLM 接入）
 - 语音输入功能
 - **消息排序与分页**：历史消息按时间正序排列，支持分页加载
 - **全局搜索**：支持关键词搜索聊天记录
 - **实时对话**：打字机效果与思考态占位符
 - **头像元数据**：用户头像展示与视觉增强
+- **长期记忆**：对话记忆自动压缩与存储
 
 ### 3. 情感胶囊
 
@@ -161,6 +162,12 @@ JWT_EXPIRES_IN=7d
 # 应用配置
 APP_PORT=3000
 APP_ENV=development
+
+# LLM 配置 (支持 OpenAI 兼容 API，如智谱 GLM、DeepSeek 等)
+# 智谱 GLM 格式: id.secret
+LLM_API_KEY=your_llm_api_key
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_MODEL=glm-4-flash
 ```
 
 ### 启动开发服务器
@@ -223,6 +230,13 @@ npm run build
 ## 许可证
 
 MIT License
+
+## 最近更新
+
+- **LLM 集成**：支持配置 OpenAI 兼容的 LLM API（智谱 GLM、DeepSeek 等）
+- **JWT Token 认证**：自动生成智谱 AI JWT Token，支持 id.secret 格式 API Key
+- **对话修复**：修复消息重复显示问题，优化打字机效果
+- **中文本地化**：Fallback 响应改为中文
 
 ## 联系方式
 

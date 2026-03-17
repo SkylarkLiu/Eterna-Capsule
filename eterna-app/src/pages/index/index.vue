@@ -184,9 +184,17 @@ onUnmounted(() => {
 .index-page {
   min-height: 100vh;
   background: radial-gradient(ellipse at center, #1A1A1A 0%, #0A0A0A 100%);
-  padding: 80rpx 40rpx 40rpx;
+  padding: 120rpx 40rpx 40rpx;
   position: relative;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* 确保内容可见 */
+.index-page > view {
+  visibility: visible;
+  opacity: 1;
 }
 
 .stars-bg {
