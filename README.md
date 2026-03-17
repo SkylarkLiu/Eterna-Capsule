@@ -55,6 +55,7 @@
 - 个人资料管理
 - 通知设置
 - 隐私设置
+- **智脑配置**：用户可自定义 LLM 模型、接口地址、API Key
 - 关于应用
 
 ## 设计风格
@@ -200,7 +201,8 @@ npm run dev:h5
 | 方法    | 路径                | 描述       |
 | ----- | ----------------- | -------- |
 | GET   | /api/users/me     | 获取当前用户信息 |
-| PATCH | /api/users/update | 更新用户信息（含 heartbeatGraceDays 心跳宽限天数）|
+| GET   | /api/users/settings | 获取用户设置（含脱敏后的 LLM 配置）|
+| PATCH | /api/users/update | 更新用户信息（含 heartbeatGraceDays、LLM 配置）|
 
 ### 守护兽模块
 
@@ -234,6 +236,7 @@ MIT License
 ## 最近更新
 
 - **LLM 集成**：支持配置 OpenAI 兼容的 LLM API（智谱 GLM、DeepSeek 等）
+- **智脑配置弹窗**：用户可在设置页面自定义 LLM 配置，支持 API Key 脱敏显示
 - **JWT Token 认证**：自动生成智谱 AI JWT Token，支持 id.secret 格式 API Key
 - **对话修复**：修复消息重复显示问题，优化打字机效果
 - **中文本地化**：Fallback 响应改为中文
