@@ -16,6 +16,7 @@ import type {
   UpdateSentinelConfigParams,
   MessagesResponse,
   SearchMessagesResponse,
+  UserSettingsResponse,
 } from './types'
 
 export const authApi = {
@@ -31,6 +32,10 @@ export const authApi = {
 export const userApi = {
   getCurrentUser: (): Promise<User> => {
     return request.get('/users/me')
+  },
+
+  getSettings: (): Promise<UserSettingsResponse> => {
+    return request.get('/users/settings')
   },
 
   updateProfile: (data: UpdateUserParams): Promise<User> => {

@@ -71,6 +71,14 @@
           </view>
           <switch :checked="biometricEnabled" @change="toggleBiometric" color="#C1FF72" />
         </view>
+        
+        <view class="settings-item" @click="openLLMConfigDrawer">
+          <view class="item-left">
+            <text class="item-icon">🧠</text>
+            <text class="item-label">智脑配置</text>
+          </view>
+          <text class="item-arrow">›</text>
+        </view>
       </view>
     </view>
 
@@ -100,65 +108,6 @@
             <text class="item-label">通知方式</text>
           </view>
           <text class="item-value">邮件、推送</text>
-        </view>
-      </view>
-    </view>
-
-    <!-- 智脑配置 (LLM Config) -->
-    <view class="settings-section">
-      <view class="section-title">
-        <text class="title-text">智脑配置</text>
-        <view class="title-line"></view>
-      </view>
-      
-      <view class="settings-list glass-panel llm-config-panel">
-        <view class="llm-input-item">
-          <view class="llm-label">
-            <text class="item-icon">🧠</text>
-            <text class="item-label">模型名称</text>
-          </view>
-          <input 
-            class="llm-input" 
-            v-model="llmConfig.model"
-            placeholder="如: glm-4-flash"
-            placeholder-class="placeholder-text"
-          />
-        </view>
-        
-        <view class="llm-input-item">
-          <view class="llm-label">
-            <text class="item-icon">🌐</text>
-            <text class="item-label">接口地址</text>
-          </view>
-          <input 
-            class="llm-input" 
-            v-model="llmConfig.baseUrl"
-            placeholder="如: https://open.bigmodel.cn/api/paas/v4"
-            placeholder-class="placeholder-text"
-          />
-        </view>
-        
-        <view class="llm-input-item">
-          <view class="llm-label">
-            <text class="item-icon">🔑</text>
-            <text class="item-label">API Key</text>
-          </view>
-          <view class="api-key-wrapper">
-            <input 
-              class="llm-input api-key-input" 
-              v-model="llmConfig.apiKey"
-              :password="!showApiKey"
-              placeholder="输入你的 API Key"
-              placeholder-class="placeholder-text"
-            />
-            <view class="toggle-visibility" @click="showApiKey = !showApiKey">
-              <text class="visibility-icon">{{ showApiKey ? '👁️' : '🙈' }}</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="llm-save-btn" :class="{ 'saving': isSavingLLM }" @click="saveLLMConfig">
-          <text class="save-btn-text">{{ isSavingLLM ? '保存中...' : '保存配置' }}</text>
         </view>
       </view>
     </view>
@@ -242,6 +191,79 @@
       v-model:visible="showProfileDrawer" 
       @close="closeProfileDrawer" 
     />
+
+    <!-- 智脑配置弹窗 -->
+    <view class="llm-drawer-overlay" :class="{ 'show': showLLMDrawer }" @click="closeLLMDrawer">
+      <view class="llm-drawer glass-panel" :class="{ 'show': showLLMDrawer }" @click.stop>
+        <view class="drawer-header">
+          <text class="drawer-title">智脑配置</text>
+          <view class="drawer-close" @click="closeLLMDrawer">
+            <text class="close-icon">×</text>
+          </view>
+        </view>
+        
+        <view class="drawer-content">
+          <view class="config-hint">
+            <text class="hint-text">配置守护兽的 AI 模型，让它更懂你</text>
+          </view>
+          
+          <view class="llm-input-item">
+            <view class="llm-label">
+              <text class="item-icon">🧠</text>
+              <text class="item-label">模型名称</text>
+            </view>
+            <input 
+              class="llm-input" 
+              v-model="llmConfig.model"
+              placeholder="如: glm-4-flash"
+              placeholder-class="placeholder-text"
+            />
+          </view>
+          
+          <view class="llm-input-item">
+            <view class="llm-label">
+              <text class="item-icon">🌐</text>
+              <text class="item-label">接口地址</text>
+            </view>
+            <input 
+              class="llm-input" 
+              v-model="llmConfig.baseUrl"
+              placeholder="如: https://open.bigmodel.cn/api/paas/v4"
+              placeholder-class="placeholder-text"
+            />
+          </view>
+          
+          <view class="llm-input-item">
+            <view class="llm-label">
+              <text class="item-icon">🔑</text>
+              <text class="item-label">API Key</text>
+              <text class="key-hint" v-if="llmConfig.apiKeyMasked">（已配置: {{ llmConfig.apiKeyMasked }}）</text>
+            </view>
+            <view class="api-key-wrapper">
+              <input 
+                class="llm-input api-key-input" 
+                v-model="llmConfig.apiKey"
+                :password="!showApiKey"
+                :placeholder="llmConfig.apiKeyMasked ? '留空保持现有配置' : '输入你的 API Key'"
+                placeholder-class="placeholder-text"
+              />
+              <view class="toggle-visibility" @click="showApiKey = !showApiKey">
+                <text class="visibility-icon">{{ showApiKey ? '👁️' : '🙈' }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        
+        <view class="drawer-footer">
+          <view class="drawer-btn cancel-btn" @click="closeLLMDrawer">
+            <text class="btn-text">取消</text>
+          </view>
+          <view class="drawer-btn save-btn" :class="{ 'saving': isSavingLLM }" @click="saveLLMConfig">
+            <text class="btn-text">{{ isSavingLLM ? '保存中...' : '保存' }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -266,11 +288,13 @@ const thresholdDaysMap: Record<string, number> = {
 }
 const showProfileDrawer = ref(false)
 
-// LLM 配置
+// LLM 配置弹窗
+const showLLMDrawer = ref(false)
 const llmConfig = reactive({
   model: '',
   baseUrl: '',
   apiKey: '',
+  apiKeyMasked: '', // 脱敏后的显示值
 })
 const showApiKey = ref(false)
 const isSavingLLM = ref(false)
@@ -284,21 +308,7 @@ onMounted(() => {
       currentThreshold.value = found[0]
     }
   }
-  // 加载已有的 LLM 配置
-  loadLLMConfig()
 })
-
-const loadLLMConfig = async () => {
-  if (!userStore.isLoggedIn) return
-  try {
-    const user = await userApi.getCurrentUser()
-    llmConfig.model = user.llmModel || ''
-    llmConfig.baseUrl = user.llmBaseUrl || ''
-    // API Key 不从服务端返回，需要用户重新输入
-  } catch (error) {
-    console.error('Failed to load LLM config:', error)
-  }
-}
 
 const goToLogin = () => {
   uni.navigateTo({
@@ -391,12 +401,34 @@ const handleLogout = () => {
   })
 }
 
-const saveLLMConfig = async () => {
+// 打开 LLM 配置弹窗
+const openLLMConfigDrawer = async () => {
   if (!userStore.isLoggedIn) {
     uni.showToast({ title: '请先登录', icon: 'none' })
     return
   }
   
+  // 加载当前配置
+  try {
+    const settings = await userApi.getSettings()
+    llmConfig.model = settings.llmModel || ''
+    llmConfig.baseUrl = settings.llmBaseUrl || ''
+    llmConfig.apiKeyMasked = settings.llmApiKeyMasked || ''
+    llmConfig.apiKey = ''
+  } catch (error) {
+    console.error('Failed to load LLM settings:', error)
+  }
+  
+  showLLMDrawer.value = true
+}
+
+// 关闭 LLM 配置弹窗
+const closeLLMDrawer = () => {
+  showLLMDrawer.value = false
+}
+
+// 保存 LLM 配置
+const saveLLMConfig = async () => {
   if (!llmConfig.model.trim() || !llmConfig.baseUrl.trim()) {
     uni.showToast({ title: '请填写模型名称和接口地址', icon: 'none' })
     return
@@ -410,21 +442,22 @@ const saveLLMConfig = async () => {
       llmBaseUrl: llmConfig.baseUrl.trim(),
     }
     
-    // 只有输入了新的 API Key 才更新
+    // 只有输入了新的 API Key 才更新（空值不覆盖）
     if (llmConfig.apiKey.trim()) {
       updateData.llmApiKey = llmConfig.apiKey.trim()
     }
     
     await userApi.updateLLMConfig(updateData)
     
+    // 关闭弹窗
+    showLLMDrawer.value = false
+    
+    // 显示成功提示
     uni.showToast({ 
       title: '守护兽智脑已连接至星云', 
       icon: 'none',
       duration: 2000,
     })
-    
-    // 清空 API Key 输入框（安全考虑）
-    llmConfig.apiKey = ''
   } catch (error) {
     console.error('Failed to save LLM config:', error)
     uni.showToast({ 
@@ -696,17 +729,98 @@ const saveLLMConfig = async () => {
   display: block;
 }
 
-/* LLM Config Styles */
-.llm-config-panel {
-  padding: 24rpx;
+/* LLM 配置弹窗样式 */
+.llm-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+}
+
+.llm-drawer-overlay.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.llm-drawer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 85vh;
+  border-radius: 32rpx 32rpx 0 0;
+  background: rgba(20, 20, 20, 0.95);
+  border: 1px solid rgba(193, 255, 114, 0.1);
+  border-bottom: none;
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  display: flex;
+  flex-direction: column;
+}
+
+.llm-drawer.show {
+  transform: translateY(0);
+}
+
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx 32rpx 24rpx;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.drawer-title {
+  font-size: 34rpx;
+  color: #C1FF72;
+  font-weight: 600;
+}
+
+.drawer-close {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
+}
+
+.close-icon {
+  font-size: 36rpx;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.drawer-content {
+  flex: 1;
+  padding: 32rpx;
+  overflow-y: auto;
+}
+
+.config-hint {
+  margin-bottom: 32rpx;
+  padding: 20rpx 24rpx;
+  background: rgba(193, 255, 114, 0.05);
+  border-radius: 12rpx;
+  border: 1px solid rgba(193, 255, 114, 0.1);
+}
+
+.hint-text {
+  font-size: 24rpx;
+  color: rgba(193, 255, 114, 0.8);
+  line-height: 1.5;
 }
 
 .llm-input-item {
-  margin-bottom: 24rpx;
-}
-
-.llm-input-item:last-of-type {
-  margin-bottom: 32rpx;
+  margin-bottom: 28rpx;
 }
 
 .llm-label {
@@ -716,14 +830,20 @@ const saveLLMConfig = async () => {
   margin-bottom: 12rpx;
 }
 
+.key-hint {
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.4);
+  margin-left: 8rpx;
+}
+
 .llm-input {
   width: 100%;
-  height: 80rpx;
+  height: 88rpx;
   padding: 0 24rpx;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(193, 255, 114, 0.15);
-  border-radius: 12rpx;
-  font-size: 26rpx;
+  border-radius: 16rpx;
+  font-size: 28rpx;
   color: #C1FF72;
   box-sizing: border-box;
 }
@@ -739,45 +859,70 @@ const saveLLMConfig = async () => {
 }
 
 .api-key-input {
-  padding-right: 80rpx;
+  padding-right: 88rpx;
 }
 
 .toggle-visibility {
   position: absolute;
-  right: 16rpx;
+  right: 20rpx;
   width: 56rpx;
   height: 56rpx;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 50%;
 }
 
 .visibility-icon {
   font-size: 24rpx;
 }
 
-.llm-save-btn {
-  padding: 24rpx;
+.drawer-footer {
+  display: flex;
+  gap: 24rpx;
+  padding: 24rpx 32rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.drawer-btn {
+  flex: 1;
+  padding: 28rpx;
+  border-radius: 16rpx;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.drawer-btn:active {
+  transform: scale(0.98);
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cancel-btn .btn-text {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.save-btn {
   background: linear-gradient(135deg, rgba(193, 255, 114, 0.2) 0%, rgba(0, 242, 255, 0.2) 100%);
   border: 1px solid rgba(193, 255, 114, 0.3);
-  border-radius: 12rpx;
-  text-align: center;
-  transition: all 0.3s ease;
 }
 
-.llm-save-btn:active {
-  transform: scale(0.98);
-  opacity: 0.8;
+.save-btn .btn-text {
+  color: #C1FF72;
+  font-weight: 500;
 }
 
-.llm-save-btn.saving {
+.save-btn.saving {
   opacity: 0.6;
   pointer-events: none;
 }
 
-.save-btn-text {
-  font-size: 28rpx;
-  color: #C1FF72;
-  font-weight: 500;
+.btn-text {
+  font-size: 30rpx;
 }
 </style>

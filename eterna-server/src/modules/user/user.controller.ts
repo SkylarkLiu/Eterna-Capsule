@@ -1,6 +1,6 @@
 import { Controller, Get, Patch, Body, Post } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { UserService } from './user.service';
+import { UserService, UserSettingsResponse } from './user.service';
 import { User } from '@/entities/user.entity';
 import { CurrentUser } from '@/common/decorators/current-user.decorator';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -18,6 +18,15 @@ export class UserController {
   @ApiResponse({ status: 404, description: '用户不存在' })
   async getCurrentUser(@CurrentUser() user: User): Promise<User> {
     return this.userService.findById(user.id);
+  }
+
+  @Get('settings')
+  @ApiOperation({ summary: '获取用户设置（包含脱敏后的 LLM 配置）' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  @ApiResponse({ status: 401, description: '未授权' })
+  @ApiResponse({ status: 404, description: '用户不存在' })
+  async getUserSettings(@CurrentUser() user: User): Promise<UserSettingsResponse> {
+    return this.userService.getUserSettings(user.id);
   }
 
   @Patch('update')

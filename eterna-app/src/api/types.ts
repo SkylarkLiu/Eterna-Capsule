@@ -174,3 +174,16 @@ export interface ChatHistoryResponse {
 export interface MemoriesResponse {
   memories: UserMemory[]
 }
+
+// 用户设置响应（包含脱敏后的 LLM 配置）
+export interface UserSettingsResponse {
+  username: string
+  email: string | null
+  phone: string | null
+  avatarUrl: string | null
+  motto: string | null
+  heartbeatGraceDays: number
+  llmModel: string | null
+  llmBaseUrl: string | null
+  llmApiKeyMasked: string | null // 脱敏后的 API Key
+}
