@@ -14,9 +14,9 @@ import { CapsuleStatus } from '@/entities/capsule.enums';
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
-  private readonly llmApiKey: string;
-  private readonly llmBaseUrl: string;
-  private readonly llmModel: string;
+  private readonly defaultApiKey: string;
+  private readonly defaultBaseUrl: string;
+  private readonly defaultModel: string;
   private cachedToken: string | null = null;
   private tokenExpireTime: number = 0;
 
@@ -33,20 +33,36 @@ export class ChatService {
     private capsuleRepository: Repository<Capsule>,
     private configService: ConfigService,
   ) {
-    this.llmApiKey = this.configService.get('LLM_API_KEY') || '';
-    this.llmBaseUrl = this.configService.get('LLM_BASE_URL') || 'https://api.openai.com/v1';
-    this.llmModel = this.configService.get('LLM_MODEL') || 'gpt-4o-mini';
+    this.defaultApiKey = this.configService.get('LLM_API_KEY') || '';
+    this.defaultBaseUrl = this.configService.get('LLM_BASE_URL') || 'https://api.openai.com/v1';
+    this.defaultModel = this.configService.get('LLM_MODEL') || 'gpt-4o-mini';
+  }
+
+  /**
+   * 获取用户的 LLM 配置（优先用户配置，其次环境变量）
+   */
+  private async getUserLLMConfig(userId: string): Promise<{ apiKey: string; baseUrl: string; model: string }> {
+    const user = await this.userRepository.findOne({ 
+      where: { id: userId },
+      select: ['id', 'llmModel', 'llmBaseUrl', 'llmApiKey'],
+    });
+    
+    return {
+      apiKey: user?.llmApiKey || this.defaultApiKey,
+      baseUrl: user?.llmBaseUrl || this.defaultBaseUrl,
+      model: user?.llmModel || this.defaultModel,
+    };
   }
 
   /**
    * 生成智谱 AI JWT Token
    * 支持 id.secret 格式的 API Key
    */
-  private generateZhipuToken(): string {
+  private generateZhipuToken(apiKey: string): string {
     // 如果 Key 不是 id.secret 格式，直接返回原 Key（用于 OpenAI 兼容 API）
-    const parts = this.llmApiKey.split('.');
+    const parts = apiKey.split('.');
     if (parts.length !== 2) {
-      return this.llmApiKey;
+      return apiKey;
     }
 
     // 检查缓存的 Token 是否还有效（提前 5 分钟刷新）
@@ -224,6 +240,7 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
    */
   async chat(userId: string, message: string): Promise<{ response: string; timestamp: number }> {
     const systemPrompt = await this.buildSystemPrompt(userId);
+    const llmConfig = await this.getUserLLMConfig(userId);
     
     const recentChats = await this.chatMemoryRepository.find({
       where: { userId },
@@ -241,7 +258,7 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
     ];
 
     try {
-      const response = await this.callOpenAI(messages);
+      const response = await this.callOpenAI(messages, llmConfig);
       
       await this.chatMemoryRepository.save(
         this.chatMemoryRepository.create({
@@ -265,7 +282,7 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
 
       const chatCount = await this.chatMemoryRepository.count({ where: { userId } });
       if (chatCount >= 20) {
-        await this.compressMemories(userId);
+        await this.compressMemories(userId, llmConfig);
       }
 
       return {
@@ -284,27 +301,30 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
   /**
    * Call LLM API (OpenAI compatible)
    */
-  private async callOpenAI(messages: Array<{ role: string; content: string }>): Promise<string> {
-    if (!this.llmApiKey) {
+  private async callOpenAI(
+    messages: Array<{ role: string; content: string }>,
+    llmConfig: { apiKey: string; baseUrl: string; model: string },
+  ): Promise<string> {
+    if (!llmConfig.apiKey) {
       this.logger.warn('LLM API Key 未配置，使用备用响应');
       return this.getFallbackResponse();
     }
 
     // 生成认证 Token（支持智谱 AI 的 JWT 认证）
-    const authToken = this.generateZhipuToken();
+    const authToken = this.generateZhipuToken(llmConfig.apiKey);
 
-    this.logger.log(`调用 LLM API: ${this.llmBaseUrl}/chat/completions`);
-    this.logger.log(`使用模型: ${this.llmModel}`);
+    this.logger.log(`调用 LLM API: ${llmConfig.baseUrl}/chat/completions`);
+    this.logger.log(`使用模型: ${llmConfig.model}`);
 
     try {
-      const response = await fetch(`${this.llmBaseUrl}/chat/completions`, {
+      const response = await fetch(`${llmConfig.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: this.llmModel,
+          model: llmConfig.model,
           messages,
           max_tokens: 500,
           temperature: 0.8,
@@ -353,7 +373,11 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
    * Compress memories - Extract key points from recent conversations
    * This is called when chat memory reaches the limit
    */
-  async compressMemories(userId: string): Promise<void> {
+  async compressMemories(
+    userId: string,
+    llmConfig?: { apiKey: string; baseUrl: string; model: string },
+  ): Promise<void> {
+    const config = llmConfig || await this.getUserLLMConfig(userId);
     const recentChats = await this.chatMemoryRepository.find({
       where: { userId, processed: false },
       order: { createdAt: 'ASC' },
@@ -385,7 +409,7 @@ Respond in JSON format:
       const response = await this.callOpenAI([
         { role: 'system', content: 'You are a memory analyst. Extract key memories from conversations.' },
         { role: 'user', content: compressionPrompt },
-      ]);
+      ], config);
 
       let memories;
       try {

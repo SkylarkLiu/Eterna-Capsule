@@ -104,6 +104,65 @@
       </view>
     </view>
 
+    <!-- 智脑配置 (LLM Config) -->
+    <view class="settings-section">
+      <view class="section-title">
+        <text class="title-text">智脑配置</text>
+        <view class="title-line"></view>
+      </view>
+      
+      <view class="settings-list glass-panel llm-config-panel">
+        <view class="llm-input-item">
+          <view class="llm-label">
+            <text class="item-icon">🧠</text>
+            <text class="item-label">模型名称</text>
+          </view>
+          <input 
+            class="llm-input" 
+            v-model="llmConfig.model"
+            placeholder="如: glm-4-flash"
+            placeholder-class="placeholder-text"
+          />
+        </view>
+        
+        <view class="llm-input-item">
+          <view class="llm-label">
+            <text class="item-icon">🌐</text>
+            <text class="item-label">接口地址</text>
+          </view>
+          <input 
+            class="llm-input" 
+            v-model="llmConfig.baseUrl"
+            placeholder="如: https://open.bigmodel.cn/api/paas/v4"
+            placeholder-class="placeholder-text"
+          />
+        </view>
+        
+        <view class="llm-input-item">
+          <view class="llm-label">
+            <text class="item-icon">🔑</text>
+            <text class="item-label">API Key</text>
+          </view>
+          <view class="api-key-wrapper">
+            <input 
+              class="llm-input api-key-input" 
+              v-model="llmConfig.apiKey"
+              :password="!showApiKey"
+              placeholder="输入你的 API Key"
+              placeholder-class="placeholder-text"
+            />
+            <view class="toggle-visibility" @click="showApiKey = !showApiKey">
+              <text class="visibility-icon">{{ showApiKey ? '👁️' : '🙈' }}</text>
+            </view>
+          </view>
+        </view>
+        
+        <view class="llm-save-btn" :class="{ 'saving': isSavingLLM }" @click="saveLLMConfig">
+          <text class="save-btn-text">{{ isSavingLLM ? '保存中...' : '保存配置' }}</text>
+        </view>
+      </view>
+    </view>
+
     <view class="settings-section">
       <view class="section-title">
         <text class="title-text">安全</text>
@@ -187,8 +246,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, reactive } from 'vue'
 import { useUserStore } from '@/stores/user'
+import { userApi } from '@/api'
 import ProfileDrawer from '@/components/ProfileDrawer.vue'
 
 const userStore = useUserStore()
@@ -206,6 +266,15 @@ const thresholdDaysMap: Record<string, number> = {
 }
 const showProfileDrawer = ref(false)
 
+// LLM 配置
+const llmConfig = reactive({
+  model: '',
+  baseUrl: '',
+  apiKey: '',
+})
+const showApiKey = ref(false)
+const isSavingLLM = ref(false)
+
 onMounted(() => {
   userStore.init()
   if (userStore.isLoggedIn && userStore.heartbeatGraceDays) {
@@ -215,7 +284,21 @@ onMounted(() => {
       currentThreshold.value = found[0]
     }
   }
+  // 加载已有的 LLM 配置
+  loadLLMConfig()
 })
+
+const loadLLMConfig = async () => {
+  if (!userStore.isLoggedIn) return
+  try {
+    const user = await userApi.getCurrentUser()
+    llmConfig.model = user.llmModel || ''
+    llmConfig.baseUrl = user.llmBaseUrl || ''
+    // API Key 不从服务端返回，需要用户重新输入
+  } catch (error) {
+    console.error('Failed to load LLM config:', error)
+  }
+}
 
 const goToLogin = () => {
   uni.navigateTo({
@@ -306,6 +389,51 @@ const handleLogout = () => {
       }
     }
   })
+}
+
+const saveLLMConfig = async () => {
+  if (!userStore.isLoggedIn) {
+    uni.showToast({ title: '请先登录', icon: 'none' })
+    return
+  }
+  
+  if (!llmConfig.model.trim() || !llmConfig.baseUrl.trim()) {
+    uni.showToast({ title: '请填写模型名称和接口地址', icon: 'none' })
+    return
+  }
+  
+  isSavingLLM.value = true
+  
+  try {
+    const updateData: { llmModel: string; llmBaseUrl: string; llmApiKey?: string } = {
+      llmModel: llmConfig.model.trim(),
+      llmBaseUrl: llmConfig.baseUrl.trim(),
+    }
+    
+    // 只有输入了新的 API Key 才更新
+    if (llmConfig.apiKey.trim()) {
+      updateData.llmApiKey = llmConfig.apiKey.trim()
+    }
+    
+    await userApi.updateLLMConfig(updateData)
+    
+    uni.showToast({ 
+      title: '守护兽智脑已连接至星云', 
+      icon: 'none',
+      duration: 2000,
+    })
+    
+    // 清空 API Key 输入框（安全考虑）
+    llmConfig.apiKey = ''
+  } catch (error) {
+    console.error('Failed to save LLM config:', error)
+    uni.showToast({ 
+      title: '保存失败，请重试', 
+      icon: 'none' 
+    })
+  } finally {
+    isSavingLLM.value = false
+  }
 }
 </script>
 
@@ -566,5 +694,90 @@ const handleLogout = () => {
   color: rgba(255, 255, 255, 0.2);
   margin-top: 12rpx;
   display: block;
+}
+
+/* LLM Config Styles */
+.llm-config-panel {
+  padding: 24rpx;
+}
+
+.llm-input-item {
+  margin-bottom: 24rpx;
+}
+
+.llm-input-item:last-of-type {
+  margin-bottom: 32rpx;
+}
+
+.llm-label {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.llm-input {
+  width: 100%;
+  height: 80rpx;
+  padding: 0 24rpx;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(193, 255, 114, 0.15);
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  color: #C1FF72;
+  box-sizing: border-box;
+}
+
+.llm-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.api-key-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.api-key-input {
+  padding-right: 80rpx;
+}
+
+.toggle-visibility {
+  position: absolute;
+  right: 16rpx;
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.visibility-icon {
+  font-size: 24rpx;
+}
+
+.llm-save-btn {
+  padding: 24rpx;
+  background: linear-gradient(135deg, rgba(193, 255, 114, 0.2) 0%, rgba(0, 242, 255, 0.2) 100%);
+  border: 1px solid rgba(193, 255, 114, 0.3);
+  border-radius: 12rpx;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.llm-save-btn:active {
+  transform: scale(0.98);
+  opacity: 0.8;
+}
+
+.llm-save-btn.saving {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.save-btn-text {
+  font-size: 28rpx;
+  color: #C1FF72;
+  font-weight: 500;
 }
 </style>

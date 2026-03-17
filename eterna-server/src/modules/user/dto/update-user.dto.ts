@@ -35,4 +35,23 @@ export class UpdateUserDto {
   @Min(1, { message: '心跳宽限天数最小为1天' })
   @Max(30, { message: '心跳宽限天数最大为30天' })
   heartbeatGraceDays?: number;
+
+  // LLM 配置字段
+  @ApiPropertyOptional({ description: 'LLM 模型名称', example: 'glm-4-flash' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: '模型名称长度不能超过100位' })
+  llmModel?: string;
+
+  @ApiPropertyOptional({ description: 'LLM 接口地址', example: 'https://open.bigmodel.cn/api/paas/v4' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: '接口地址长度不能超过500位' })
+  llmBaseUrl?: string;
+
+  @ApiPropertyOptional({ description: 'LLM API Key' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500, { message: 'API Key 长度不能超过500位' })
+  llmApiKey?: string;
 }

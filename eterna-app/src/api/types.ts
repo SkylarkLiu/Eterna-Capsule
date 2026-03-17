@@ -8,6 +8,9 @@ export interface User {
   lastHeartbeatAt: string | null
   heartbeatStatus: HeartbeatStatus
   heartbeatGraceDays: number
+  llmModel?: string | null
+  llmBaseUrl?: string | null
+  // llmApiKey is not exposed in responses for security
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
@@ -39,6 +42,9 @@ export interface UpdateUserParams {
   avatarUrl?: string
   motto?: string
   heartbeatGraceDays?: number
+  llmModel?: string
+  llmBaseUrl?: string
+  llmApiKey?: string
 }
 
 export type CapsuleType = 'TEXT' | 'IMAGE' | 'VIDEO'

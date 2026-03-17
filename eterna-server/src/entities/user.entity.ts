@@ -69,4 +69,18 @@ export class User {
   @ApiPropertyOptional({ description: '最后登录时间' })
   @Column({ type: 'datetime', nullable: true })
   lastLoginAt: Date;
+
+  // LLM 配置字段
+  @ApiPropertyOptional({ description: 'LLM 模型名称', example: 'glm-4-flash' })
+  @Column({ length: 100, nullable: true })
+  llmModel: string;
+
+  @ApiPropertyOptional({ description: 'LLM 接口地址', example: 'https://open.bigmodel.cn/api/paas/v4' })
+  @Column({ length: 500, nullable: true })
+  llmBaseUrl: string;
+
+  @Exclude()
+  @ApiPropertyOptional({ description: 'LLM API Key' })
+  @Column({ length: 500, nullable: true, select: false })
+  llmApiKey: string;
 }

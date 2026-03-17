@@ -44,6 +44,10 @@ export const userApi = {
   updateHeartbeatGraceDays: (days: number): Promise<User> => {
     return request.patch('/users/update', { heartbeatGraceDays: days })
   },
+
+  updateLLMConfig: (config: { llmModel?: string; llmBaseUrl?: string; llmApiKey?: string }): Promise<User> => {
+    return request.patch('/users/update', config)
+  },
 }
 
 export const capsuleApi = {
