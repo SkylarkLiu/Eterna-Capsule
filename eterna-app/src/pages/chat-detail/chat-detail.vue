@@ -50,8 +50,19 @@
       class="chat-messages" 
       scroll-y 
       :scroll-top="scrollTop" 
+      :scroll-into-view="scrollIntoView"
       scroll-with-animation
+      @scrolltoupper="loadMoreHistory"
+      :upper-threshold="100"
     >
+      <!-- 加载更多提示 -->
+      <view class="load-more-tip" v-if="isLoadingMore">
+        <text class="tip-text">正在加载更多记忆...</text>
+      </view>
+      <view class="load-more-tip" v-else-if="!hasMoreHistory && messages.length > 0">
+        <text class="tip-text tip-end">— 已到达记忆起点 —</text>
+      </view>
+      
       <view class="messages-container">
         <view 
           v-for="(msg, index) in displayMessages" 
@@ -146,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useSentinelStore } from '@/stores/sentinel'
 import { useUserStore } from '@/stores/user'
 import { sentinelApi } from '@/api'
@@ -166,6 +177,7 @@ const userStore = useUserStore()
 
 const inputText = ref('')
 const scrollTop = ref(0)
+const scrollIntoView = ref('')
 const showSearchBar = ref(false)
 const searchQuery = ref('')
 const showDatePicker = ref(false)
@@ -173,6 +185,13 @@ const isSending = ref(false)
 const isWaitingResponse = ref(false)
 const messages = ref<Message[]>([])
 const currentTypingId = ref<string | null>(null)
+
+// 分页加载状态
+const currentPage = ref(1)
+const pageSize = 30
+const isLoadingMore = ref(false)
+const hasMoreHistory = ref(true)
+const totalMessages = ref(0)
 
 const quickReplies = [
   '你好',
@@ -476,15 +495,21 @@ async function typewriterEffect(messageIndex: number, text: string) {
 }
 
 function scrollToBottomSmooth() {
-  // 使用 requestAnimationFrame 减少闪烁
-  requestAnimationFrame(() => {
-    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999
-  })
+  // 使用 scroll-into-view 滚动到最后一条消息
+  if (displayMessages.value.length > 0) {
+    const lastMsg = displayMessages.value[displayMessages.value.length - 1]
+    scrollIntoView.value = `msg-${lastMsg.id}`
+  }
 }
 
 function scrollToBottom() {
   nextTick(() => {
-    scrollTop.value = scrollTop.value === 99999 ? 99998 : 99999
+    // 使用 scroll-into-view 精确定位到最后一条消息
+    if (displayMessages.value.length > 0) {
+      const lastMsg = displayMessages.value[displayMessages.value.length - 1]
+      // 通过改变值触发滚动（如果 ID 相同则不触发，所以加时间戳）
+      scrollIntoView.value = `msg-${lastMsg.id}-${Date.now()}`
+    }
   })
 }
 
@@ -518,7 +543,21 @@ function jumpToDate(dateStr: string) {
 
 async function loadHistory() {
   try {
-    const response = await sentinelApi.getMessages(1, 50)
+    // 先获取总数，计算最后一页
+    const countResponse = await sentinelApi.getMessages(1, 1)
+    totalMessages.value = countResponse.total || 0
+    
+    if (totalMessages.value === 0) {
+      hasMoreHistory.value = false
+      return
+    }
+    
+    // 计算总页数和起始页
+    const totalPages = Math.ceil(totalMessages.value / pageSize)
+    currentPage.value = totalPages // 从最后一页开始
+    
+    // 加载最后一页的消息（最新的消息）
+    const response = await sentinelApi.getMessages(currentPage.value, pageSize)
     messages.value = response.messages.map(m => ({
       id: m.id || generateId(),
       role: m.role as 'user' | 'assistant',
@@ -528,18 +567,68 @@ async function loadHistory() {
       isThinking: false,
       isTyping: false,
     }))
+    
+    // 判断是否还有更多历史
+    hasMoreHistory.value = currentPage.value > 1
   } catch (error) {
     console.error('Failed to load history:', error)
+  }
+}
+
+// 加载更多历史消息（向上滚动时触发）
+async function loadMoreHistory() {
+  if (isLoadingMore.value || !hasMoreHistory.value) return
+  
+  isLoadingMore.value = true
+  
+  try {
+    // 加载前一页（更早的消息）
+    currentPage.value--
+    
+    if (currentPage.value < 1) {
+      hasMoreHistory.value = false
+      return
+    }
+    
+    const response = await sentinelApi.getMessages(currentPage.value, pageSize)
+    
+    if (response.messages.length === 0) {
+      hasMoreHistory.value = false
+      return
+    }
+    
+    // 将旧消息插入到前面
+    const olderMessages = response.messages.map(m => ({
+      id: m.id || generateId(),
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+      displayContent: m.content,
+      createdAt: m.createdAt,
+      isThinking: false,
+      isTyping: false,
+    }))
+    
+    messages.value = [...olderMessages, ...messages.value]
+    
+    // 判断是否还有更多
+    hasMoreHistory.value = currentPage.value > 1
+  } catch (error) {
+    console.error('Failed to load more history:', error)
+    currentPage.value++ // 回退页码
+  } finally {
+    isLoadingMore.value = false
   }
 }
 
 onMounted(async () => {
   userStore.init()
   await loadHistory()
+  // 等待 DOM 渲染完成后滚动到底部
   await nextTick()
-  setTimeout(() => {
-    scrollToBottom()
-  }, 300)
+  // 多次尝试滚动，确保在数据加载完成后执行
+  setTimeout(() => scrollToBottom(), 100)
+  setTimeout(() => scrollToBottom(), 300)
+  setTimeout(() => scrollToBottom(), 500)
 })
 </script>
 
@@ -748,6 +837,21 @@ onMounted(async () => {
   padding: 24rpx;
   position: relative;
   z-index: 1;
+  height: 0; /* 配合 flex: 1 确保固定高度 */
+}
+
+.load-more-tip {
+  text-align: center;
+  padding: 20rpx 0;
+}
+
+.tip-text {
+  font-size: 22rpx;
+  color: rgba(193, 255, 114, 0.6);
+}
+
+.tip-end {
+  color: rgba(255, 255, 255, 0.3);
 }
 
 .messages-container {
