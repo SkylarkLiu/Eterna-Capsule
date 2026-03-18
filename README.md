@@ -42,6 +42,7 @@
 - **实时对话**：打字机效果与思考态占位符
 - **头像元数据**：用户头像展示与视觉增强
 - **长期记忆**：对话记忆自动压缩与存储
+- **个性定制**：可自定义守护兽昵称与性格设定
 
 ### 3. 情感胶囊
 
@@ -96,6 +97,8 @@
 │   │   ├── stores/          # Pinia 状态管理
 │   │   ├── App.vue          # 根组件
 │   │   └── main.ts          # 应用入口
+│   ├── .env.development     # 开发环境配置
+│   ├── .env.production      # 生产环境配置
 │   ├── index.html           # HTML 入口
 │   ├── package.json         # 项目依赖
 │   ├── tsconfig.json        # TypeScript 配置
@@ -115,11 +118,15 @@
 │   │   │   └── user/        # 用户模块
 │   │   ├── app.module.ts    # 应用模块
 │   │   └── main.ts          # 应用入口
+│   ├── Dockerfile           # Docker 构建文件
+│   ├── .dockerignore        # Docker 忽略文件
 │   ├── .env.example         # 环境变量示例
 │   ├── eterna.db            # SQLite 数据库
 │   └── package.json         # 项目依赖
 │
-├── docker-compose.yml       # Docker 配置
+├── .env                     # Docker 环境变量（不提交）
+├── .env.example             # Docker 环境变量模板
+├── docker-compose.yml       # Docker Compose 配置
 └── README.md                # 项目说明
 ```
 
@@ -129,8 +136,11 @@
 
 - Node.js >= 18
 - npm >= 9
+- Docker (可选，用于容器化部署)
 
-### 安装依赖
+### 方式一：本地开发
+
+#### 安装依赖
 
 ```bash
 # 安装前端依赖
@@ -142,7 +152,7 @@ cd ../eterna-server
 npm install
 ```
 
-### 配置环境变量
+#### 配置环境变量
 
 ```bash
 cd eterna-server
@@ -168,10 +178,10 @@ APP_ENV=development
 # 智谱 GLM 格式: id.secret
 LLM_API_KEY=your_llm_api_key
 LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-LLM_MODEL=glm-4-flash
+LLM_MODEL=glm-5
 ```
 
-### 启动开发服务器
+#### 启动开发服务器
 
 ```bash
 # 启动后端服务 (在 eterna-server 目录)
@@ -181,11 +191,69 @@ npm run start:dev
 npm run dev:h5
 ```
 
-### 访问地址
+#### 访问地址
 
 - 前端：<http://localhost:5173>
 - 后端 API：<http://localhost:3000/api>
 - API 文档：<http://localhost:3000/api/docs>
+
+### 方式二：Docker 部署
+
+#### 配置环境变量
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑 .env 文件，填入实际配置
+```
+
+`.env` 文件内容：
+
+```env
+# JWT 配置
+JWT_SECRET=your_jwt_secret_here
+JWT_EXPIRES_IN=7d
+
+# 智谱 AI LLM 配置
+LLM_API_KEY=your_llm_api_key_here
+LLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_MODEL=glm-5
+```
+
+#### 启动服务
+
+```bash
+# 构建并启动
+docker-compose up -d --build
+
+# 查看日志
+docker-compose logs -f eterna-server
+
+# 停止服务
+docker-compose down
+```
+
+#### 访问地址
+
+- 后端 API：<http://localhost:3000/api>
+- API 文档：<http://localhost:3000/api/docs>
+
+#### 数据持久化
+
+Docker 容器使用 Volume 持久化数据：
+
+- `eterna_data`：SQLite 数据库文件
+- `eterna_uploads`：用户上传文件
+
+## 前端环境配置
+
+前端支持开发/生产环境自动切换 API 地址：
+
+- `.env.development`：开发环境，使用 `localhost:3000`
+- `.env.production`：生产环境，配置实际服务器 IP
+
+修改 `.env.production` 中的 `VITE_API_BASE_URL` 以适配你的部署环境。
 
 ## API 接口
 
@@ -211,6 +279,9 @@ npm run dev:h5
 | GET  | /api/sentinel/messages  | 获取守护兽消息历史（分页，按时间正序）       |
 | POST | /api/sentinel/chat      | 发送消息并获取AI回复               |
 | GET  | /api/sentinel/search    | 全局搜索聊天记录（支持关键词和日期筛选）      |
+| GET  | /api/sentinel/config    | 获取守护兽配置（昵称、性格设定）          |
+| PATCH| /api/sentinel/config    | 更新守护兽配置                   |
+| POST | /api/sentinel/feed      | 喂食守护兽，增加能量                |
 | GET  | /api/sentinel/energy    | 获取守护兽能量状态                  |
 
 ## 构建生产版本
@@ -234,6 +305,16 @@ npm run build
 MIT License
 
 ## 最近更新
+
+### v1.1.0 (2026-03-18)
+
+- **Docker 部署**：支持 Docker Compose 一键部署，包含数据持久化配置
+- **环境变量安全**：敏感配置通过 `.env` 文件管理，模板文件供参考
+- **LLM 超时优化**：前端 axios 超时 60s，后端 AbortController 55s 超时控制
+- **守护兽个性定制**：支持自定义守护兽昵称与性格设定
+- **前端环境配置**：开发/生产环境自动切换 API 地址
+
+### v1.0.0
 
 - **LLM 集成**：支持配置 OpenAI 兼容的 LLM API（智谱 GLM、DeepSeek 等）
 - **智脑配置弹窗**：用户可在设置页面自定义 LLM 配置，支持 API Key 脱敏显示

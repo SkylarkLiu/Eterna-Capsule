@@ -1,23 +1,24 @@
-version: '3.8'
-
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: eterna-postgres
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: eterna_db
+  eterna-server:
+    build: ./eterna-server
+    container_name: eterna-server
     ports:
-      - "5432:5432"
+      - "3000:3000"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - eterna_data:/app/data
+      - eterna_uploads:/app/uploads
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
 volumes:
-  postgres_data:
+  eterna_data:
+  eterna_uploads:

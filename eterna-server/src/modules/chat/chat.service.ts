@@ -316,6 +316,10 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
     this.logger.log(`调用 LLM API: ${llmConfig.baseUrl}/chat/completions`);
     this.logger.log(`使用模型: ${llmConfig.model}`);
 
+    // 使用 AbortController 实现超时控制
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000); // 55秒超时
+
     try {
       const response = await fetch(`${llmConfig.baseUrl}/chat/completions`, {
         method: 'POST',
@@ -329,7 +333,10 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
           max_tokens: 500,
           temperature: 0.8,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -348,8 +355,13 @@ Remember: You are not just a chatbot. You are ${sentinel.customName}, a guardian
 
       return data.choices[0].message.content;
     } catch (error) {
-      this.logger.error(`LLM 调用失败: ${error.message}`);
-      this.logger.error(`错误堆栈: ${error.stack}`);
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        this.logger.error('LLM API 调用超时');
+      } else {
+        this.logger.error(`LLM 调用失败: ${error.message}`);
+        this.logger.error(`错误堆栈: ${error.stack}`);
+      }
       return this.getFallbackResponse();
     }
   }

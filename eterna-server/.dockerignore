@@ -1,0 +1,15 @@
+node_modules
+dist
+*.log
+.env
+.env.*
+coverage
+.git
+.gitignore
+*.md
+.vscode
+.idea
+*.db
+*.db-journal
+uploads/*
+!uploads/.gitkeep

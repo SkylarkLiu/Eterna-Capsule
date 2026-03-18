@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
 import type { ApiResponse } from './types'
 
-const BASE_URL = 'http://localhost:3000/api'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api'
 
 const TOKEN_KEY = 'eterna_token'
 const USER_KEY = 'eterna_user'
@@ -33,7 +33,7 @@ export const removeStoredUser = (): void => {
 
 const instance: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000, // 60秒，LLM API 可能需要较长时间
   headers: {
     'Content-Type': 'application/json',
   },

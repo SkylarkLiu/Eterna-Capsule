@@ -22,9 +22,34 @@
           "<uses-permission android:name=\"android.permission.INTERNET\"/>",
           "<uses-permission android:name=\"android.permission.USE_FINGERPRINT\"/>",
           "<uses-permission android:name=\"android.permission.USE_BIOMETRIC\"/>"
-        ]
+        ],
+        "icon": {
+          "ldpi": "static/icon-72x72.png",
+          "mdpi": "static/icon-96x96.png",
+          "hdpi": "static/icon-144x144.png",
+          "xhdpi": "static/icon-192x192.png",
+          "xxhdpi": "static/icon-384x384.png",
+          "xxxhdpi": "static/icon-512x512.png"
+        }
       },
-      "ios": {},
+      "ios": {
+        "icon": {
+          "appstore": "static/icon-1024x1024.png",
+          "ipad": {
+            "app": "static/icon-76x76.png",
+            "app@2x": "static/icon-152x152.png",
+            "notification": "static/icon-20x20.png",
+            "notification@2x": "static/icon-40x40.png",
+            "proapp@2x": "static/icon-256x256.png"
+          },
+          "iphone": {
+            "app@2x": "static/icon-120x120.png",
+            "app@3x": "static/icon-180x180.png",
+            "notification@2x": "static/icon-40x40.png",
+            "notification@3x": "static/icon-60x60.png"
+          }
+        }
+      },
       "sdkConfigs": {}
     }
   },
