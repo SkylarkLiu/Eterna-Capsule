@@ -371,16 +371,68 @@ async function sendMessage() {
       createdAt: new Date(now.getTime() + 100).toISOString(),
     })
     
-  } catch (error) {
-    // 出错时移除"思考中"消息
-    const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
-    if (msgIndex !== -1) {
-      messages.value.splice(msgIndex, 1)
+  } catch (error: any) {
+    console.error('Chat error:', error)
+    
+    // 检查是否是超时错误
+    const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout')
+    
+    // 超时时，尝试从服务器获取最新消息
+    if (isTimeout) {
+      // 更新"思考中"消息为超时提示
+      const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
+      if (msgIndex !== -1) {
+        messages.value[msgIndex].isThinking = false
+        messages.value[msgIndex].isTyping = false
+        messages.value[msgIndex].content = '守护兽思考时间较长，正在获取回复...'
+        messages.value[msgIndex].displayContent = '守护兽思考时间较长，正在获取回复...'
+      }
+      
+      // 尝试重新加载历史消息
+      try {
+        const historyResponse = await sentinelApi.getMessages(1, 3)
+        const latestAssistant = historyResponse.messages.find((m: any) => m.role === 'assistant')
+        
+        if (latestAssistant && latestAssistant.content) {
+          // 找到了回复，更新消息
+          if (msgIndex !== -1) {
+            messages.value[msgIndex].content = latestAssistant.content
+            messages.value[msgIndex].displayContent = ''
+            messages.value[msgIndex].isTyping = true
+            await typewriterEffect(msgIndex, latestAssistant.content)
+          }
+        } else {
+          // 没有找到回复，移除"思考中"消息
+          if (msgIndex !== -1) {
+            messages.value.splice(msgIndex, 1)
+          }
+          uni.showToast({
+            title: '请求超时，请稍后重试',
+            icon: 'none',
+          })
+        }
+      } catch (reloadError) {
+        // 重新加载失败，移除"思考中"消息
+        const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
+        if (msgIndex !== -1) {
+          messages.value.splice(msgIndex, 1)
+        }
+        uni.showToast({
+          title: '请求超时，请稍后重试',
+          icon: 'none',
+        })
+      }
+    } else {
+      // 非超时错误，直接移除"思考中"消息
+      const msgIndex = messages.value.findIndex(m => m.id === assistantMsgId)
+      if (msgIndex !== -1) {
+        messages.value.splice(msgIndex, 1)
+      }
+      uni.showToast({
+        title: '消息发送失败',
+        icon: 'none',
+      })
     }
-    uni.showToast({
-      title: '消息发送失败',
-      icon: 'none',
-    })
   } finally {
     isWaitingResponse.value = false
     currentTypingId.value = null

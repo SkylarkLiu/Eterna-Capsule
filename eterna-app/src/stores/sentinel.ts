@@ -60,7 +60,14 @@ export const useSentinelStore = defineStore('sentinel', () => {
 
       return response.sentinelResponse
     } catch (error: any) {
-      currentMessage.value = '星辰之间的连接似乎有些不稳定...'
+      // 区分超时和其他错误
+      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout')
+      if (isTimeout) {
+        currentMessage.value = '守护兽思考的时间有点长，但回复已保存，请点击"查看全部"查看...'
+      } else {
+        currentMessage.value = '星辰之间的连接似乎有些不稳定...'
+      }
+      console.error('Chat error:', error)
       return currentMessage.value
     } finally {
       isLoading.value = false
